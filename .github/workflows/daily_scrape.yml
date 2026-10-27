@@ -2,11 +2,12 @@ name: Daily Job Scraper & Tracker
 
 on:
   schedule:
-    # 3 Times a Day (IST is UTC + 5:30):
-    # - 08:00 AM IST -> 02:30 UTC
-    # - 02:00 PM IST -> 08:30 UTC
-    # - 08:00 PM IST -> 14:30 UTC
-    - cron: '30 2,8,14 * * *'
+    # 4 Smart Daily Scans (IST is UTC + 5:30):
+    # - 09:00 AM IST -> 03:30 UTC (Morning batch)
+    # - 01:00 PM IST -> 07:30 UTC (Lunchtime batch)
+    # - 05:00 PM IST -> 11:30 UTC (Evening batch)
+    # - 09:00 PM IST -> 15:30 UTC (End-of-day recap)
+    - cron: '30 3,7,11,15 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 jobs:

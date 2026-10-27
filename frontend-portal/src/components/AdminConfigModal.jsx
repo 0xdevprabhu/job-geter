@@ -216,65 +216,70 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col text-slate-800"
+        className="relative w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] rounded-2xl sm:rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col text-slate-800 overflow-hidden"
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-sm">
-              <Sliders className="w-5 h-5" />
+        <div className="shrink-0 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0 shadow-xs">
+              <Sliders className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Search Configuration & Admin Control</h2>
-              <p className="text-xs text-slate-500">Manage Job Roles, Locations (Tamil Nadu & India), and Scraper Settings</p>
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                Search Configuration & Admin Control
+              </h2>
+              <p className="text-[11px] sm:text-xs text-slate-500 truncate">
+                Roles, Locations (Tamil Nadu & India) & Scraping Limits
+              </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition shrink-0"
+            aria-label="Close modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-6 flex-1">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4 sm:space-y-5">
           {/* Alerts */}
           {successMsg && (
-            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 shadow-sm">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] sm:text-xs flex items-center gap-2 shadow-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span className="font-medium">{successMsg}</span>
             </div>
           )}
 
           {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 shadow-sm">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] sm:text-xs flex items-center gap-2 shadow-xs">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{errorMsg}</span>
+              <span className="font-medium">{errorMsg}</span>
             </div>
           )}
 
           {/* SECTION 1: JOB ROLES & KEYWORDS */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Briefcase className="w-4 h-4 text-blue-600" />
-                Target Job Roles & Keywords ({roles.length})
+          <div className="space-y-2 sm:space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5 sm:gap-1">
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Briefcase className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>Target Roles & Keywords ({roles.length})</span>
               </label>
-              <span className="text-[11px] text-slate-400">Scrapes each role across all selected platforms</span>
+              <span className="text-[10px] sm:text-[11px] text-slate-400">Scrapes across selected platforms</span>
             </div>
 
             {/* Input to add custom role */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <input
                 type="text"
-                placeholder="Enter job role or keyword (e.g. Flutter Developer, Python Engineer)..."
+                placeholder="Enter role (e.g. PHP, React.js)..."
                 value={newRoleInput}
                 onChange={(e) => setNewRoleInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -283,30 +288,30 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                     handleAddRole();
                   }
                 }}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500 transition"
+                className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition"
               />
               <button
                 type="button"
                 onClick={() => handleAddRole()}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1 shadow-sm transition"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1 shadow-xs shrink-0 transition"
               >
-                <Plus className="w-4 h-4" />
-                Add Role
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
               </button>
             </div>
 
             {/* Quick preset suggestion buttons */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-medium text-slate-400">Suggestions:</span>
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 mr-0.5">Suggestions:</span>
               {PRESET_ROLES.map((preset) => {
-                const isAdded = roles.some(r => r.toLowerCase() === preset.toLowerCase());
+                const isAdded = roles.some((r) => r.toLowerCase() === preset.toLowerCase());
                 if (isAdded) return null;
                 return (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => handleAddRole(preset)}
-                    className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/80 transition flex items-center gap-1"
+                    className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/70 transition flex items-center gap-0.5"
                   >
                     <span>+ {preset}</span>
                   </button>
@@ -315,19 +320,20 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
             </div>
 
             {/* Active Role Tags */}
-            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-wrap gap-2 max-h-44 overflow-y-auto">
+            <div className="p-2 sm:p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-wrap gap-1.5 max-h-32 sm:max-h-36 overflow-y-auto">
               {roles.map((role) => (
                 <span
                   key={role}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-800 shadow-sm"
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-medium bg-white border border-slate-200 text-slate-800 shadow-2xs"
                 >
-                  <span>{role}</span>
+                  <span className="truncate max-w-[180px]">{role}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveRole(role)}
-                    className="text-slate-400 hover:text-rose-500 transition p-0.5"
+                    className="text-slate-400 hover:text-rose-500 transition p-0.5 ml-0.5"
+                    aria-label={`Remove ${role}`}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-3 h-3" />
                   </button>
                 </span>
               ))}
@@ -335,20 +341,20 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
           </div>
 
           {/* SECTION 2: LOCATIONS */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-emerald-600" />
-                Locations (Tamil Nadu, India & Remote) ({locations.length})
+          <div className="space-y-2 sm:space-y-2.5 pt-2 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5 sm:gap-1">
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Locations ({locations.length})</span>
               </label>
-              <span className="text-[11px] text-slate-400">Cities or broad regions</span>
+              <span className="text-[10px] sm:text-[11px] text-slate-400">Tamil Nadu, India & Remote</span>
             </div>
 
             {/* Input to add custom location */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <input
                 type="text"
-                placeholder="Enter city or state (e.g. Trichy, Tamil Nadu, India, Remote)..."
+                placeholder="Enter city or state (e.g. Trichy, Remote)..."
                 value={newLocationInput}
                 onChange={(e) => setNewLocationInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -357,30 +363,30 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                     handleAddLocation();
                   }
                 }}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500 transition"
+                className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
               />
               <button
                 type="button"
                 onClick={() => handleAddLocation()}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1 shadow-sm transition"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1 shadow-xs shrink-0 transition"
               >
-                <Plus className="w-4 h-4" />
-                Add Location
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
               </button>
             </div>
 
             {/* Preset locations suggestions */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-medium text-slate-400">Popular:</span>
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 mr-0.5">Popular:</span>
               {PRESET_LOCATIONS.map((loc) => {
-                const isAdded = locations.some(l => l.toLowerCase() === loc.toLowerCase());
+                const isAdded = locations.some((l) => l.toLowerCase() === loc.toLowerCase());
                 if (isAdded) return null;
                 return (
                   <button
                     key={loc}
                     type="button"
                     onClick={() => handleAddLocation(loc)}
-                    className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200/80 transition flex items-center gap-1"
+                    className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200/70 transition flex items-center gap-0.5"
                   >
                     <span>+ {loc}</span>
                   </button>
@@ -389,20 +395,21 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
             </div>
 
             {/* Active Location Tags */}
-            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+            <div className="p-2 sm:p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-wrap gap-1.5 max-h-28 sm:max-h-32 overflow-y-auto">
               {locations.map((loc) => (
                 <span
                   key={loc}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-800 shadow-sm"
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-medium bg-white border border-slate-200 text-slate-800 shadow-2xs"
                 >
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>{loc}</span>
+                  <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span className="truncate max-w-[170px]">{loc}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveLocation(loc)}
-                    className="text-slate-400 hover:text-rose-500 transition p-0.5 ml-1"
+                    className="text-slate-400 hover:text-rose-500 transition p-0.5 ml-0.5"
+                    aria-label={`Remove ${loc}`}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-3 h-3" />
                   </button>
                 </span>
               ))}
@@ -410,34 +417,34 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
           </div>
 
           {/* SECTION 3: SITES TO SCRAPE & LIMITS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pt-2 border-t border-slate-100">
             {/* Sites checkboxes */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Globe className="w-4 h-4 text-purple-600" />
-                Platforms To Scrape
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span>Platforms To Scrape</span>
               </label>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-1 gap-1.5">
                 {ALL_SITES.map((site) => {
                   const isChecked = sites.includes(site.id);
                   return (
                     <label
                       key={site.id}
-                      className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${
+                      className={`flex items-center justify-between px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border text-[11px] sm:text-xs font-medium cursor-pointer transition select-none ${
                         isChecked
-                          ? 'bg-blue-50/60 border-blue-200 text-slate-800'
+                          ? 'bg-blue-50/70 border-blue-200 text-slate-900 font-semibold'
                           : 'bg-slate-50 border-slate-200 text-slate-400'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <PortalIcon source={site.label} className="w-4 h-4" />
-                        <span>{site.label}</span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <PortalIcon source={site.label} className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{site.label}</span>
                       </div>
                       <input
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => handleToggleSite(site.id)}
-                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                        className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 ml-1.5"
                       />
                     </label>
                   );
@@ -446,22 +453,22 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
             </div>
 
             {/* Scrape Parameters */}
-            <div className="space-y-4">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-amber-600" />
-                Scrape Limits & Frequency
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Scrape Limits & Frequency</span>
               </label>
 
-              <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="space-y-2 sm:space-y-3 bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-200">
                 <div>
-                  <div className="flex justify-between text-xs font-medium text-slate-700 mb-1">
+                  <div className="flex justify-between text-[11px] sm:text-xs font-medium text-slate-700 mb-1">
                     <span>Lookback Window:</span>
-                    <span className="font-bold text-blue-600">{hoursOld} Hours Old</span>
+                    <strong className="font-bold text-blue-600">{hoursOld} Hours</strong>
                   </div>
                   <select
                     value={hoursOld}
                     onChange={(e) => setHoursOld(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
                   >
                     <option value={12}>Past 12 Hours (Fresh only)</option>
                     <option value={24}>Past 24 Hours (Daily standard)</option>
@@ -471,17 +478,17 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                    <span>Results Per Role / Location:</span>
-                    <span className="font-bold text-blue-600">{resultsPerRole} Results</span>
+                  <div className="flex justify-between text-[11px] sm:text-xs font-medium text-slate-700 mb-1">
+                    <span>Results Per Role:</span>
+                    <strong className="font-bold text-blue-600">{resultsPerRole} Results</strong>
                   </div>
                   <select
                     value={resultsPerRole}
                     onChange={(e) => setResultsPerRole(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
                   >
                     <option value={15}>15 jobs per role (Fast)</option>
-                    <option value={25}>25 jobs per role (Balanced - Recommended)</option>
+                    <option value={25}>25 jobs per role (Balanced)</option>
                     <option value={50}>50 jobs per role (Comprehensive)</option>
                     <option value={75}>75 jobs per role (Deep scan)</option>
                   </select>
@@ -492,17 +499,17 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
         </div>
 
         {/* Footer Actions */}
-        <div className="sticky bottom-0 z-10 bg-slate-50 border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3">
-          <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Updates Firestore collection <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-700 font-mono">app_config</code></span>
+        <div className="shrink-0 bg-slate-50 border-t border-slate-200 px-3.5 py-2.5 sm:px-6 sm:py-3.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+          <div className="text-[10px] sm:text-xs text-slate-500 flex items-center justify-center sm:justify-start gap-1.5 order-2 sm:order-1">
+            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span>Syncs to Firestore <code className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-700 font-mono text-[9px] sm:text-[10px]">app_config</code></span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 order-1 sm:order-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 transition"
+              className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 transition text-center"
             >
               Cancel
             </button>
@@ -510,10 +517,10 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
               type="button"
               onClick={handleSaveConfig}
               disabled={saving}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-blue-500/20 disabled:opacity-50 transition transform active:scale-95"
+              className="flex-2 sm:flex-none px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 disabled:opacity-50 transition transform active:scale-95"
             >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'Saving to Cloud...' : 'Save Configuration'}</span>
+              <Save className="w-3.5 h-3.5" />
+              <span>{saving ? 'Saving...' : 'Save Configuration'}</span>
             </button>
           </div>
         </div>

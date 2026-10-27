@@ -52,7 +52,15 @@ const SOURCE_PILL_STYLES = {
 };
 
 export default function App() {
-  const getTodayString = () => new Date().toISOString().split('T')[0];
+  // Always calculate current date strictly in Indian Standard Time (IST / Asia/Kolkata)
+  const getTodayString = () => {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date()); // Formats as YYYY-MM-DD
+  };
 
   // Primary state
   const [selectedDate, setSelectedDate] = useState(getTodayString);
@@ -112,25 +120,49 @@ export default function App() {
     'Remote'
   ]);
 
-  // Automated 3x Daily Sync Metadata
+  // Automated 4x Daily Sync Metadata in Indian Standard Time (IST)
   const [syncMetadata, setSyncMetadata] = useState({
-    last_synced_time: '10:55 PM',
+    last_synced_time: '10:55 PM IST',
     last_synced_date: getTodayString(),
     status: 'success'
   });
 
-  // Calculate upcoming scheduled scan time in IST
+  // Format last synced timestamp strictly to Indian Standard Time (IST)
+  const getLastSyncedISTDisplay = () => {
+    if (syncMetadata.last_synced_at) {
+      try {
+        const formatted = new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }).format(new Date(syncMetadata.last_synced_at));
+        return `${formatted} IST`;
+      } catch (e) {
+        // Fallback
+      }
+    }
+    if (syncMetadata.last_synced_time) {
+      return syncMetadata.last_synced_time.includes('IST')
+        ? syncMetadata.last_synced_time
+        : `${syncMetadata.last_synced_time} IST`;
+    }
+    return 'Recent (IST)';
+  };
+
+  // Calculate upcoming scheduled scan time strictly in IST (9:00 AM, 1:00 PM, 5:00 PM, 9:00 PM IST)
   const getNextSyncSlot = () => {
     const now = new Date();
-    // Convert to IST (UTC+5:30)
+    // Convert strictly to IST (UTC + 5:30)
     const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
     const istMinutes = (utcMinutes + 330) % 1440; // 5 hours 30 mins = 330 mins
     const istHours = istMinutes / 60;
 
-    if (istHours < 8) return 'Today at 08:00 AM IST';
-    if (istHours < 14) return 'Today at 02:00 PM IST';
-    if (istHours < 20) return 'Today at 08:00 PM IST';
-    return 'Tomorrow at 08:00 AM IST';
+    if (istHours < 9) return 'Today at 09:00 AM IST';
+    if (istHours < 13) return 'Today at 01:00 PM IST';
+    if (istHours < 17) return 'Today at 05:00 PM IST';
+    if (istHours < 21) return 'Today at 09:00 PM IST';
+    return 'Tomorrow at 09:00 AM IST';
   };
 
   // Load app_config and sync_status from Firestore
@@ -434,7 +466,7 @@ export default function App() {
 
       {/* 2. MAIN FULL-WIDTH CONTAINER */}
       <main className="max-w-[1780px] w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 space-y-3.5">
-        {/* AUTOMATED 3X DAILY SCAN BANNER */}
+        {/* AUTOMATED 4X DAILY SCAN BANNER */}
         <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/80 border border-blue-200/80 rounded-2xl p-2.5 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2.5 w-2.5 shrink-0">
@@ -443,8 +475,8 @@ export default function App() {
             </span>
             <div className="text-xs text-slate-800">
               <span className="font-medium text-slate-600">Last Scraped & Synced: </span>
-              <strong className="text-blue-700 font-bold">{syncMetadata.last_synced_time || 'Recent'}</strong>
-              <span className="text-slate-400 font-medium hidden sm:inline"> ({syncMetadata.last_synced_date || 'Today'})</span>
+              <strong className="text-blue-700 font-bold">{getLastSyncedISTDisplay()}</strong>
+              <span className="text-slate-400 font-medium hidden sm:inline"> ({syncMetadata.last_synced_date || getTodayString()})</span>
             </div>
           </div>
 
@@ -455,7 +487,7 @@ export default function App() {
             </div>
 
             <span className="hidden lg:inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200/70">
-              ⚡ 3 Daily Runs: 8:00 AM • 2:00 PM • 8:00 PM IST
+              ⚡ 4 Smart Daily Runs: 9:00 AM • 1:00 PM • 5:00 PM • 9:00 PM IST
             </span>
           </div>
         </div>

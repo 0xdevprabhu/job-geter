@@ -1,8 +1,13 @@
-// Generates sample jobs for today and previous days to preview the dashboard immediately
+// Generates sample jobs for today and previous days formatted in Indian Standard Time (IST)
 const getFormattedDate = (offsetDays = 0) => {
   const d = new Date();
   d.setDate(d.getDate() - offsetDays);
-  return d.toISOString().split('T')[0];
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
 };
 
 export const generateSampleJobs = () => {

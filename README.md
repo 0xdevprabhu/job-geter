@@ -31,7 +31,7 @@ job-geter/
 │
 ├── .github/
 │   └── workflows/
-│       └── daily_scrape.yml     # Automated GitHub Action at 8:00 AM IST (02:30 UTC)
+│       └── daily_scrape.yml     # Automated 4 Smart Daily Runs: 9 AM, 1 PM, 5 PM, 9 PM IST
 │
 └── README.md
 ```
@@ -171,7 +171,11 @@ Visit `http://localhost:3000` in your browser.
 ## 🤖 Step 5: Automated Daily Scraping (GitHub Actions)
 
 The workflow file is pre-configured at `.github/workflows/daily_scrape.yml`:
-- Runs automatically **every day at 8:00 AM IST** (02:30 UTC).
+- Runs automatically **4 times daily in IST**:
+  - **09:00 AM IST** (03:30 UTC) - Morning batch
+  - **01:00 PM IST** (07:30 UTC) - Lunchtime batch
+  - **05:00 PM IST** (11:30 UTC) - Evening batch
+  - **09:00 PM IST** (15:30 UTC) - End-of-day recap
 - Can also be manually triggered anytime via the **Actions** tab in GitHub (**Run workflow** button).
 
 ### Setting up the GitHub Secret:

@@ -11,11 +11,14 @@ import json
 import time
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+
+# Indian Standard Time (IST = UTC + 5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
 
 # Load local environment variables if available
 load_dotenv()
@@ -446,8 +449,9 @@ def main():
     hours_old = int(config.get("hours_old", 24))
     results_per_role = int(config.get("results_per_role", 25))
 
-    today_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    logger.info(f"Scraped Date stamp: {today_date}")
+    # Lock scraped date stamp strictly to Indian Standard Time (IST)
+    today_date = datetime.now(IST).strftime("%Y-%m-%d")
+    logger.info(f"Scraped Date stamp (IST): {today_date}")
 
     all_scraped_jobs: List[Dict[str, Any]] = []
     seen_ids = set()
@@ -499,21 +503,23 @@ def main():
         stats = push_jobs_to_firestore(db, all_scraped_jobs)
         logger.info(f"\nFirestore Push Summary: {stats['created']} new added, {stats['updated']} updated/merged, {stats['failed']} errors.")
 
-        # Record synchronization status & timestamps for the frontend dashboard
+        # Record synchronization status & timestamps for the frontend dashboard in IST
         try:
-            now_iso = datetime.now(timezone.utc).isoformat()
-            now_local_str = datetime.now().strftime("%I:%M %p")
+            now_ist = datetime.now(IST)
+            now_iso = now_ist.isoformat()
+            now_ist_str = now_ist.strftime("%I:%M %p")
             db.collection("app_config").document("sync_status").set({
                 "last_synced_at": now_iso,
-                "last_synced_time": now_local_str,
+                "last_synced_time": f"{now_ist_str} IST",
                 "last_synced_date": today_date,
                 "total_jobs_scraped": len(all_scraped_jobs),
                 "created_count": stats["created"],
                 "updated_count": stats["updated"],
                 "status": "success",
-                "next_slots_ist": ["08:00 AM", "02:00 PM", "08:00 PM"]
+                "timezone": "IST (UTC+5:30)",
+                "next_slots_ist": ["09:00 AM", "01:00 PM", "05:00 PM", "09:00 PM"]
             }, merge=True)
-            logger.info(f"Recorded sync status in Firestore app_config/sync_status (Time: {now_local_str}).")
+            logger.info(f"Recorded sync status in Firestore app_config/sync_status (IST Time: {now_ist_str} IST).")
         except Exception as sync_err:
             logger.warning(f"Failed to record sync status in Firestore: {sync_err}")
     else:

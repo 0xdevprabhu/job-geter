@@ -54,28 +54,28 @@ export default function AdminAuthModal({ isOpen, onClose, onSuccess }) {
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md rounded-3xl bg-white border border-slate-200 p-6 shadow-2xl space-y-5 text-slate-800"
+        className="relative w-full max-w-md rounded-2xl sm:rounded-3xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 text-slate-800"
       >
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-sm">
-              <KeyRound className="w-5 h-5" />
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs shrink-0">
+              <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Admin Authentication</h3>
-              <p className="text-xs text-slate-500">Enter password to unlock Search Settings</p>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">Admin Authentication</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500">Enter password to unlock Search Settings</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
