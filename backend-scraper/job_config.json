@@ -1,0 +1,28 @@
+{
+  "sites_to_scrape": [
+    "naukri",
+    "indeed",
+    "linkedin",
+    "glassdoor"
+  ],
+  "hours_old": 24,
+  "results_per_role": 25,
+  "job_roles": [
+    "PHP Developer",
+    "Laravel Developer",
+    "React.js Developer",
+    "Full Stack Developer",
+    "Junior Software Developer",
+    "Frontend Developer",
+    "Node.js Developer",
+    "Web Developer"
+  ],
+  "locations": [
+    "Madurai, Tamil Nadu",
+    "Chennai, Tamil Nadu",
+    "Coimbatore, Tamil Nadu",
+    "Tamil Nadu",
+    "India",
+    "Remote"
+  ]
+}

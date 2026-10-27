@@ -1,0 +1,37 @@
+name: Daily Job Scraper & Tracker
+
+on:
+  schedule:
+    # 3 Times a Day (IST is UTC + 5:30):
+    # - 08:00 AM IST -> 02:30 UTC
+    # - 02:00 PM IST -> 08:30 UTC
+    # - 08:00 PM IST -> 14:30 UTC
+    - cron: '30 2,8,14 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  scrape-and-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend-scraper/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend-scraper/requirements.txt
+
+      - name: Run Job Scraper
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python backend-scraper/scraper.py
