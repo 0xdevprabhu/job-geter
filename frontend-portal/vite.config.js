@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -96,6 +97,8 @@ function authApiPlugin() {
         const mailScript = path.join(rootDir, 'backend-scraper', 'mail_service.py');
         const scraperScript = path.join(rootDir, 'backend-scraper', 'scraper.py');
 
+        const OTP_SECRET = process.env.OTP_SECRET || 'zipzap-cloud-secret-otp-token-2026';
+
         // Route: Send OTP
         if (req.url === '/api/send-otp' && req.method === 'POST') {
           const body = await readBody();
@@ -109,6 +112,15 @@ function authApiPlugin() {
           // Generate 6 digit numeric OTP
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
           const result = await executePython(mailScript, ['send', email, otp, purpose]);
+          
+          if (result.success) {
+            const expiresAt = Date.now() + 10 * 60 * 1000;
+            const hmac = crypto.createHmac('sha256', OTP_SECRET);
+            hmac.update(`${email}:${otp}:${expiresAt}`);
+            result.token = `${expiresAt}:${hmac.digest('hex')}`;
+            result.expires_timestamp = expiresAt;
+          }
+
           return sendJson(result.success ? 200 : 500, result);
         }
 
@@ -117,9 +129,22 @@ function authApiPlugin() {
           const body = await readBody();
           const email = (body.email || '').trim().toLowerCase();
           const otp = (body.otp || '').trim();
+          const token = (body.token || '').trim();
 
           if (!email || !otp) {
             return sendJson(400, { success: false, error: 'Email and OTP code are required.' });
+          }
+
+          if (token && token.includes(':')) {
+            const [expiresAtStr, sig] = token.split(':');
+            const expiresAt = Number(expiresAtStr);
+            if (Date.now() <= expiresAt) {
+              const hmac = crypto.createHmac('sha256', OTP_SECRET);
+              hmac.update(`${email}:${otp}:${expiresAtStr}`);
+              if (sig === hmac.digest('hex')) {
+                return sendJson(200, { success: true, message: 'OTP verified successfully!' });
+              }
+            }
           }
 
           const result = await executePython(mailScript, ['verify', email, otp]);

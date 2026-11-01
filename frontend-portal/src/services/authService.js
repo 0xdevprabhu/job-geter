@@ -88,11 +88,14 @@ export async function sendOtpEmail(email, purpose = 'signup') {
     });
 
     const data = await res.json();
+    if (data.token) {
+      sessionStorage.setItem('zipzap_otp_token', data.token);
+    }
     return data;
   } catch (err) {
     return {
       success: false,
-      error: 'Failed to communicate with OTP server. Make sure Vite is running and Gmail credentials are set.',
+      error: 'Failed to communicate with OTP server. Please ensure the server is online and Gmail credentials are set.',
     };
   }
 }
@@ -101,17 +104,21 @@ export async function sendOtpEmail(email, purpose = 'signup') {
 export async function verifyOtpCode(email, otp) {
   const cleanEmail = (email || '').trim().toLowerCase();
   const cleanOtp = (otp || '').trim();
+  const token = sessionStorage.getItem('zipzap_otp_token') || '';
 
   try {
     const res = await fetch('/api/verify-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, otp: cleanOtp }),
+      body: JSON.stringify({ email: cleanEmail, otp: cleanOtp, token }),
     });
 
     const data = await res.json();
     if (data.success) {
+      sessionStorage.removeItem('zipzap_otp_token');
       return { success: true };
+    } else if (data.error) {
+      return { success: false, error: data.error };
     }
   } catch (err) {
     console.warn('API verify failed, checking Firestore directly:', err);
