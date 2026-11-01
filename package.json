@@ -1,0 +1,11 @@
+{
+  "name": "zipzap",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ZipZap - Instant Daily Job Radar & Tracker",
+  "scripts": {
+    "dev": "npm run dev --prefix frontend-portal",
+    "build": "npm run build --prefix frontend-portal"
+  }
+}
+

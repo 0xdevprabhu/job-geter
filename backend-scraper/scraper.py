@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Personal Daily Job Aggregator & Tracker - Scraper Engine
+ZipZap - Instant Daily Job Aggregator & Tracker - Scraper Engine
 Scrapes jobs from multiple platforms (Naukri, Indeed, LinkedIn, Glassdoor, RemoteOK)
 and pushes them to Firebase Firestore with duplicate prevention and user status preservation.
 """
@@ -302,7 +302,7 @@ def scrape_remoteok_jobs(job_roles: List[str], scraped_date: str) -> List[Dict[s
     logger.info("🌐 Fetching remote opportunities from RemoteOK API...")
     url = "https://remoteok.com/api"
     headers = {
-        "User-Agent": "JobAggregatorBot/1.0 (Personal Job Tracker; contact: candidate@workplace.local)",
+        "User-Agent": "ZipZapBot/1.0 (ZipZap Daily Job Radar; contact: support@zipzap.local)",
         "Accept": "application/json"
     }
 
@@ -427,10 +427,72 @@ def push_jobs_to_firestore(db, jobs: List[Dict[str, Any]]) -> Dict[str, int]:
     return stats
 
 
+def cleanup_old_jobs(db, retention_days: int = 30) -> Dict[str, Any]:
+    """
+    Deletes jobs from Firestore collection 'daily_jobs' that were scraped more than
+    retention_days (30 days) ago.
+    Also cleans up any references in 'users' collections (saved_job_ids, read_job_ids).
+    """
+    if not db:
+        return {"deleted_jobs": 0, "users_cleaned": 0}
+
+    cutoff_date = (datetime.now(IST) - timedelta(days=retention_days)).strftime("%Y-%m-%d")
+    logger.info(f"🧹 Running 30-Day Retention Cleanup for jobs before {cutoff_date}...")
+
+    deleted_job_ids = set()
+    try:
+        # Query jobs scraped before cutoff date
+        jobs_ref = db.collection("daily_jobs")
+        old_jobs = jobs_ref.where("scraped_date", "<", cutoff_date).stream()
+
+        batch = db.batch()
+        batch_count = 0
+
+        for doc in old_jobs:
+            deleted_job_ids.add(doc.id)
+            batch.delete(doc.reference)
+            batch_count += 1
+            if batch_count >= 400:
+                batch.commit()
+                batch = db.batch()
+                batch_count = 0
+
+        if batch_count > 0:
+            batch.commit()
+
+        logger.info(f"  ✓ Deleted {len(deleted_job_ids)} jobs older than 30 days (before {cutoff_date}).")
+
+        # Prune references from users collection if any jobs were deleted
+        users_cleaned = 0
+        if deleted_job_ids:
+            users_ref = db.collection("users").stream()
+            for u in users_ref:
+                u_data = u.to_dict() or {}
+                saved_ids = set(u_data.get("saved_job_ids", []))
+                read_ids = set(u_data.get("read_job_ids", []))
+
+                new_saved = list(saved_ids - deleted_job_ids)
+                new_read = list(read_ids - deleted_job_ids)
+
+                if len(new_saved) != len(saved_ids) or len(new_read) != len(read_ids):
+                    u.reference.update({
+                        "saved_job_ids": new_saved,
+                        "read_job_ids": new_read
+                    })
+                    users_cleaned += 1
+
+        logger.info(f"  ✓ Pruned user references for {users_cleaned} users.")
+        return {"deleted_jobs": len(deleted_job_ids), "users_cleaned": users_cleaned}
+
+    except Exception as e:
+        logger.error(f"Error during 30-day retention cleanup: {e}")
+        return {"deleted_jobs": len(deleted_job_ids), "error": str(e)}
+
+
 def main():
     start_time = time.time()
     logger.info("=" * 60)
-    logger.info("🚀 Personal Daily Job Aggregator & Tracker - Starting Run")
+    logger.info("🚀 ZipZap - Instant Daily Job Aggregator & Tracker - Starting Run")
     logger.info("=" * 60)
 
     # 1. Connect to Firestore
@@ -503,6 +565,10 @@ def main():
         stats = push_jobs_to_firestore(db, all_scraped_jobs)
         logger.info(f"\nFirestore Push Summary: {stats['created']} new added, {stats['updated']} updated/merged, {stats['failed']} errors.")
 
+        # 6. Run 30-Day Data Retention Policy
+        cleanup_stats = cleanup_old_jobs(db, retention_days=30)
+        logger.info(f"Cleanup summary: {cleanup_stats.get('deleted_jobs', 0)} jobs deleted, {cleanup_stats.get('users_cleaned', 0)} user profiles pruned.")
+
         # Record synchronization status & timestamps for the frontend dashboard in IST
         try:
             now_ist = datetime.now(IST)
@@ -534,4 +600,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] in ["--cleanup", "cleanup"]:
+        db = initialize_firebase()
+        days = int(sys.argv[2]) if len(sys.argv) > 2 else 30
+        res = cleanup_old_jobs(db, retention_days=days)
+        print(json.dumps(res))
+    else:
+        main()

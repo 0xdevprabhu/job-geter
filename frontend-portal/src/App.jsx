@@ -24,7 +24,12 @@ import {
   Sliders,
   SlidersHorizontal,
   RotateCcw,
-  Tag
+  Tag,
+  User,
+  Eye,
+  EyeOff,
+  Download,
+  Smartphone
 } from 'lucide-react';
 import { db, isFirebaseConfigured } from './firebase';
 import {
@@ -38,8 +43,19 @@ import {
 } from 'firebase/firestore';
 import { generateSampleJobs } from './demoData';
 import PortalIcon from './components/PortalIcon';
+import ZipZapLogo from './components/ZipZapLogo';
 import AdminConfigModal from './components/AdminConfigModal';
 import AdminAuthModal from './components/AdminAuthModal';
+import UserAuthModal from './components/UserAuthModal';
+import UserProfileModal from './components/UserProfileModal';
+import InstallPwaModal from './components/InstallPwaModal';
+import {
+  getSavedSession,
+  setSavedSession,
+  toggleSavedJob,
+  toggleReadJob,
+  subscribeToUserData
+} from './services/authService';
 
 // Source brand pill styling
 const SOURCE_PILL_STYLES = {
@@ -62,6 +78,18 @@ export default function App() {
     }).format(new Date()); // Formats as YYYY-MM-DD
   };
 
+  // 30-Day lookback cutoff limit
+  const getMinDateString = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  };
+
   // Primary state
   const [selectedDate, setSelectedDate] = useState(getTodayString);
   const [jobs, setJobs] = useState([]);
@@ -71,6 +99,77 @@ export default function App() {
   const [demoMode, setDemoMode] = useState(!isFirebaseConfigured);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // User Auth & Session States
+  const [currentUser, setCurrentUser] = useState(() => getSavedSession());
+  const [isUserAuthModalOpen, setIsUserAuthModalOpen] = useState(false);
+  const [userAuthMode, setUserAuthMode] = useState('login');
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+
+  // PWA Install Prompt State & Handlers
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [canInstallPwa, setCanInstallPwa] = useState(false);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+
+  useEffect(() => {
+    // Check if already in standalone PWA window
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+    if (isStandalone) {
+      setIsAppInstalled(true);
+    }
+
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+      setCanInstallPwa(true);
+    };
+
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setCanInstallPwa(false);
+      setDeferredInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleTriggerInstall = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setCanInstallPwa(false);
+        setIsAppInstalled(true);
+      }
+      setDeferredInstallPrompt(null);
+    } else {
+      setIsInstallModalOpen(true);
+    }
+  };
+
+  // Subscribe to real-time updates for logged-in user's saved & read lists
+  useEffect(() => {
+    if (!currentUser?.email) return;
+
+    const unsubscribe = subscribeToUserData(currentUser.email, (updatedData) => {
+      setCurrentUser((prev) => {
+        const merged = { ...prev, ...updatedData };
+        setSavedSession(merged);
+        return merged;
+      });
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.email]);
 
   // Secret 3-Clicks Easter Egg on Logo to unlock Admin Panel
   const [logoClicks, setLogoClicks] = useState(0);
@@ -198,12 +297,17 @@ export default function App() {
     fetchConfig();
   }, []);
 
-  // Date navigation handlers
+  // Date navigation handlers (with 30-day cutoff limit)
   const shiftDate = (days) => {
     const current = new Date(selectedDate);
     if (isNaN(current.getTime())) return;
     current.setDate(current.getDate() + days);
-    setSelectedDate(current.toISOString().split('T')[0]);
+    const targetStr = current.toISOString().split('T')[0];
+    const today = getTodayString();
+    const minDate = getMinDateString();
+
+    if (targetStr > today || targetStr < minDate) return;
+    setSelectedDate(targetStr);
   };
 
   const setDateToToday = () => {
@@ -263,6 +367,57 @@ export default function App() {
     setIsLoading(false);
   };
 
+  // Toggle Saved status (Per-User Firestore & Local state)
+  const handleToggleSaved = async (e, job) => {
+    e?.stopPropagation();
+    if (!currentUser) {
+      setUserAuthMode('login');
+      setIsUserAuthModalOpen(true);
+      return;
+    }
+
+    const savedList = currentUser.saved_job_ids || [];
+    const isCurrentlySaved = savedList.includes(job.id);
+    const updatedSaved = isCurrentlySaved
+      ? savedList.filter((id) => id !== job.id)
+      : [...savedList, job.id];
+
+    const updatedUser = { ...currentUser, saved_job_ids: updatedSaved };
+    setCurrentUser(updatedUser);
+    setSavedSession(updatedUser);
+
+    await toggleSavedJob(currentUser.email, job.id, isCurrentlySaved);
+  };
+
+  // Toggle Read status (Per-User Firestore & Local state)
+  const handleToggleRead = async (e, job) => {
+    e?.stopPropagation();
+    if (!currentUser) {
+      setUserAuthMode('login');
+      setIsUserAuthModalOpen(true);
+      return;
+    }
+
+    const readList = currentUser.read_job_ids || [];
+    const isCurrentlyRead = readList.includes(job.id);
+    const updatedRead = isCurrentlyRead
+      ? readList.filter((id) => id !== job.id)
+      : [...readList, job.id];
+
+    const updatedUser = { ...currentUser, read_job_ids: updatedRead };
+    setCurrentUser(updatedUser);
+    setSavedSession(updatedUser);
+
+    await toggleReadJob(currentUser.email, job.id, isCurrentlyRead);
+  };
+
+  // Handle User Logout
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setSavedSession(null);
+    setIsUserProfileModalOpen(false);
+  };
+
   // Toggle Applied status
   const handleToggleApplied = async (e, job) => {
     e?.stopPropagation();
@@ -281,28 +436,6 @@ export default function App() {
         await updateDoc(jobRef, { is_applied: newStatus });
       } catch (err) {
         console.error('Error updating is_applied in Firestore:', err);
-      }
-    }
-  };
-
-  // Toggle Saved status
-  const handleToggleSaved = async (e, job) => {
-    e?.stopPropagation();
-    const newStatus = !job.is_saved;
-
-    setJobs((prev) =>
-      prev.map((item) => (item.id === job.id ? { ...item, is_saved: newStatus } : item))
-    );
-    if (selectedJob?.id === job.id) {
-      setSelectedJob((prev) => ({ ...prev, is_saved: newStatus }));
-    }
-
-    if (isFirebaseConfigured && !demoMode && db) {
-      try {
-        const jobRef = doc(db, 'daily_jobs', job.id);
-        await updateDoc(jobRef, { is_saved: newStatus });
-      } catch (err) {
-        console.error('Error updating is_saved in Firestore:', err);
       }
     }
   };
@@ -374,14 +507,24 @@ export default function App() {
         (job.source_app &&
           job.source_app.toLowerCase() === selectedSource.toLowerCase());
 
-      // Status filter
+      // Status filter (Per-User Saved, Unread, Read)
       let matchesStatus = true;
-      if (statusFilter === 'applied') matchesStatus = job.is_applied === true;
-      if (statusFilter === 'saved') matchesStatus = job.is_saved === true;
+      const userSaved = currentUser?.saved_job_ids || [];
+      const userRead = currentUser?.read_job_ids || [];
+
+      if (statusFilter === 'saved') {
+        matchesStatus = userSaved.includes(job.id);
+      } else if (statusFilter === 'unread') {
+        matchesStatus = !userRead.includes(job.id);
+      } else if (statusFilter === 'read') {
+        matchesStatus = userRead.includes(job.id);
+      } else if (statusFilter === 'applied') {
+        matchesStatus = job.is_applied === true;
+      }
 
       return matchesSearch && matchesRole && matchesLocation && matchesSource && matchesStatus;
     });
-  }, [jobs, searchQuery, selectedRole, selectedLocation, selectedSource, statusFilter]);
+  }, [jobs, searchQuery, selectedRole, selectedLocation, selectedSource, statusFilter, currentUser]);
 
   // Dynamic Platform Counts for selected date
   const platformCounts = useMemo(() => {
@@ -405,7 +548,23 @@ export default function App() {
 
   const totalJobsCount = jobs.length;
   const appliedJobsCount = jobs.filter((j) => j.is_applied).length;
-  const savedJobsCount = jobs.filter((j) => j.is_saved).length;
+
+  // Real-time Per-User Counts for current day's jobs
+  const userSavedCount = useMemo(() => {
+    if (!currentUser?.saved_job_ids?.length) return 0;
+    const set = new Set(currentUser.saved_job_ids);
+    return jobs.filter((j) => set.has(j.id)).length;
+  }, [jobs, currentUser?.saved_job_ids]);
+
+  const savedJobsCount = userSavedCount;
+
+  const userReadCount = useMemo(() => {
+    if (!currentUser?.read_job_ids?.length) return 0;
+    const set = new Set(currentUser.read_job_ids);
+    return jobs.filter((j) => set.has(j.id)).length;
+  }, [jobs, currentUser?.read_job_ids]);
+
+  const userUnreadCount = Math.max(0, jobs.length - userReadCount);
 
   const isAnyFilterActive =
     searchQuery ||
@@ -430,28 +589,13 @@ export default function App() {
           {/* Logo & Title - Secret Triple Click for Admin */}
           <div
             onClick={handleSecretLogoClick}
-            className="flex items-center gap-3 cursor-pointer select-none group"
-            title="Daily Job Radar (Click 3 times for Admin)"
+            className="cursor-pointer select-none group"
+            title="ZipZap - Instant Daily Job Radar (Click 3 times for Admin)"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25 shrink-0 transition-transform active:scale-95 group-hover:scale-105">
-              <Briefcase className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 leading-tight">
-                  Daily Job Radar
-                </h1>
-                <span className="hidden sm:inline-block px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
-                  Aggregator & Tracker
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                Tamil Nadu, India & Remote Daily Job Scanner
-              </p>
-            </div>
+            <ZipZapLogo size={42} showText={true} />
           </div>
 
-          {/* Right Action Controls: Live Sync Badge Only (Public Admin Button is Hidden) */}
+          {/* Right Action Controls: Live Sync & User Profile / Login Icon */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Sync Status Badge */}
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs text-slate-600 shadow-sm">
@@ -460,6 +604,58 @@ export default function App() {
                 {isFirebaseConfigured && !demoMode ? 'Firestore Live Sync' : 'Demo Mode'}
               </span>
             </div>
+
+            {/* PWA INSTALL APP BUTTON */}
+            {!isAppInstalled && (
+              <button
+                onClick={handleTriggerInstall}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-xs hover:shadow transition transform hover:scale-[1.02] active:scale-[0.98] group"
+                title="Install ZipZap on your device (Desktop app / Android / iPhone)"
+              >
+                <Download className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" />
+                <span className="hidden sm:inline">Install App</span>
+                <span className="sm:hidden">Install</span>
+              </button>
+            )}
+
+            {/* USER ACCOUNT ICON (Before login -> Sign In indicator / After login -> Active User Badge) */}
+            {currentUser && currentUser.email ? (
+              <button
+                onClick={() => setIsUserProfileModalOpen(true)}
+                className="flex items-center gap-2 pl-2 pr-3 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 shadow-sm transition hover:border-blue-400 group"
+                title={`Signed in as ${currentUser.email} (Click to view profile & logout)`}
+              >
+                <div className="relative">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-xs">
+                    {(currentUser.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 absolute -bottom-0.5 -right-0.5 ring-2 ring-white" />
+                </div>
+                <div className="text-left hidden sm:block">
+                  <div className="text-[11px] font-bold text-slate-800 leading-tight truncate max-w-[120px]">
+                    {currentUser.email.includes('@') ? currentUser.email.split('@')[0] : currentUser.email}
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-medium leading-none">
+                    Signed In
+                  </div>
+                </div>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setUserAuthMode('login');
+                  setIsUserAuthModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 shadow-sm transition group"
+                title="Click to Sign In or Sign Up with OTP"
+              >
+                <div className="relative flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-400 group-hover:text-blue-600 transition">
+                  <User className="w-3.5 h-3.5" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 absolute -bottom-0.5 -right-0.5 ring-1 ring-white" />
+                </div>
+                <span>Sign In</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -603,13 +799,14 @@ export default function App() {
         <section className="rounded-2xl bg-white border border-slate-200/90 p-3.5 sm:p-4 shadow-sm space-y-3">
           {/* Top Row: Date Picker & Search Input */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
-            {/* Quick Date Switcher */}
-            <div className="md:col-span-4 flex items-center gap-2">
+            {/* Quick Date Switcher (Restricted to Last 30 Days) */}
+            <div className="md:col-span-5 flex items-center gap-2">
               <div className="flex items-center rounded-xl bg-slate-50 border border-slate-200 p-1 w-full sm:w-auto shadow-inner">
                 <button
                   onClick={() => shiftDate(-1)}
-                  title="Previous Day"
-                  className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition"
+                  disabled={selectedDate <= getMinDateString()}
+                  title="Previous Day (within last 30 days)"
+                  className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition disabled:opacity-30 disabled:hover:bg-transparent"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -618,16 +815,24 @@ export default function App() {
                   <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                   <input
                     type="date"
+                    min={getMinDateString()}
+                    max={getTodayString()}
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val <= getTodayString() && val >= getMinDateString()) {
+                        setSelectedDate(val);
+                      }
+                    }}
                     className="bg-transparent border-none text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-0 cursor-pointer"
                   />
                 </div>
 
                 <button
                   onClick={() => shiftDate(1)}
+                  disabled={selectedDate >= getTodayString()}
                   title="Next Day"
-                  className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition"
+                  className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition disabled:opacity-30 disabled:hover:bg-transparent"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -636,15 +841,19 @@ export default function App() {
               {selectedDate !== getTodayString() && (
                 <button
                   onClick={setDateToToday}
-                  className="text-xs px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold border border-blue-200 transition shrink-0"
+                  className="text-xs px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 transition"
                 >
                   Today
                 </button>
               )}
+
+              <span className="text-[10px] text-slate-400 font-semibold bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 hidden lg:inline">
+                30-Day Window
+              </span>
             </div>
 
             {/* Keyword Search */}
-            <div className="md:col-span-8 relative">
+            <div className="md:col-span-7 relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
@@ -732,9 +941,10 @@ export default function App() {
               })}
             </div>
 
-            {/* Right: Status Tabs & Reset */}
+            {/* Right: User-Specific Status Filter Tabs & Reset */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-xl bg-slate-100 p-0.5 text-xs">
+              <div className="flex items-center rounded-xl bg-slate-100 p-0.5 text-xs overflow-x-auto">
+                {/* All Jobs */}
                 <button
                   onClick={() => setStatusFilter('all')}
                   className={`px-2.5 py-1 rounded-lg font-semibold transition ${
@@ -743,29 +953,70 @@ export default function App() {
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  All
+                  All ({totalJobsCount})
                 </button>
+
+                {/* User Saved */}
                 <button
-                  onClick={() => setStatusFilter('saved')}
+                  onClick={() => {
+                    if (!currentUser) {
+                      setUserAuthMode('login');
+                      setIsUserAuthModalOpen(true);
+                    } else {
+                      setStatusFilter('saved');
+                    }
+                  }}
                   className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 ${
                     statusFilter === 'saved'
-                      ? 'bg-white text-amber-600 shadow-sm'
+                      ? 'bg-white text-purple-700 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
+                  title={currentUser ? 'View your saved jobs' : 'Sign in to view saved jobs'}
                 >
-                  <Bookmark className="w-3 h-3 text-amber-500 fill-amber-500" />
-                  Saved ({savedJobsCount})
+                  <Bookmark className={`w-3 h-3 ${statusFilter === 'saved' ? 'text-purple-600 fill-purple-600' : 'text-slate-400'}`} />
+                  <span>Saved ({userSavedCount})</span>
                 </button>
+
+                {/* Unread */}
                 <button
-                  onClick={() => setStatusFilter('applied')}
+                  onClick={() => {
+                    if (!currentUser) {
+                      setUserAuthMode('login');
+                      setIsUserAuthModalOpen(true);
+                    } else {
+                      setStatusFilter('unread');
+                    }
+                  }}
                   className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 ${
-                    statusFilter === 'applied'
-                      ? 'bg-white text-emerald-600 shadow-sm'
+                    statusFilter === 'unread'
+                      ? 'bg-white text-blue-700 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
+                  title={currentUser ? 'View unread jobs' : 'Sign in to view unread jobs'}
+                >
+                  <Eye className="w-3 h-3 text-blue-500" />
+                  <span>Unread ({userUnreadCount})</span>
+                </button>
+
+                {/* Marked as Read */}
+                <button
+                  onClick={() => {
+                    if (!currentUser) {
+                      setUserAuthMode('login');
+                      setIsUserAuthModalOpen(true);
+                    } else {
+                      setStatusFilter('read');
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 ${
+                    statusFilter === 'read'
+                      ? 'bg-white text-emerald-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title={currentUser ? 'View jobs you marked as read' : 'Sign in to view read jobs'}
                 >
                   <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                  Applied ({appliedJobsCount})
+                  <span>Read ({userReadCount})</span>
                 </button>
               </div>
 
@@ -809,13 +1060,18 @@ export default function App() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
             {filteredJobs.map((job) => {
+              const isJobSaved = currentUser ? (currentUser.saved_job_ids || []).includes(job.id) : false;
+              const isJobRead = currentUser ? (currentUser.read_job_ids || []).includes(job.id) : false;
+
               return (
                 <div
                   key={job.id}
                   onClick={() => setSelectedJob(job)}
                   className={`job-card group cursor-pointer relative rounded-2xl bg-white border p-4 flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.07)] transition ${
-                    job.is_applied
-                      ? 'border-emerald-200 bg-emerald-50/20'
+                    isJobRead
+                      ? 'border-slate-200/60 bg-slate-50/60 opacity-90'
+                      : isJobSaved
+                      ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10'
                       : 'border-slate-200/90 hover:border-blue-400'
                   }`}
                 >
@@ -830,35 +1086,47 @@ export default function App() {
 
                       {/* Card Action Icons */}
                       <div className="flex items-center gap-1">
-                        {/* Bookmark Button */}
+                        {/* Bookmark / Saved Button */}
                         <button
                           onClick={(e) => handleToggleSaved(e, job)}
-                          title={job.is_saved ? 'Remove Bookmark' : 'Save / Bookmark Job'}
+                          title={
+                            isJobSaved
+                              ? 'Saved to your profile (Click to remove)'
+                              : currentUser
+                              ? 'Save to your profile'
+                              : 'Sign in to save this job'
+                          }
                           className={`p-1.5 rounded-lg border transition ${
-                            job.is_saved
-                              ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
-                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700 hover:bg-slate-100'
+                            isJobSaved
+                              ? 'bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100 shadow-2xs'
+                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-purple-600 hover:bg-purple-50/50'
                           }`}
                         >
-                          {job.is_saved ? (
-                            <BookmarkCheck className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                          ) : (
-                            <Bookmark className="w-3.5 h-3.5" />
-                          )}
+                          <Bookmark
+                            className={`w-3.5 h-3.5 ${
+                              isJobSaved ? 'text-purple-600 fill-purple-600' : ''
+                            }`}
+                          />
                         </button>
 
-                        {/* Applied Toggle Button */}
+                        {/* Mark as Read Button */}
                         <button
-                          onClick={(e) => handleToggleApplied(e, job)}
-                          title={job.is_applied ? 'Mark as Not Applied' : 'Mark as Applied'}
+                          onClick={(e) => handleToggleRead(e, job)}
+                          title={
+                            isJobRead
+                              ? 'Marked as read (Click to mark unread)'
+                              : currentUser
+                              ? 'Mark as Read'
+                              : 'Sign in to mark job as read'
+                          }
                           className={`p-1.5 rounded-lg border text-xs font-medium transition ${
-                            job.is_applied
-                              ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700 hover:bg-slate-100'
+                            isJobRead
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100 shadow-2xs'
+                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-emerald-600 hover:bg-emerald-50/50'
                           }`}
                         >
                           <CheckCircle2
-                            className={`w-3.5 h-3.5 ${job.is_applied ? 'text-emerald-600 fill-emerald-100' : ''}`}
+                            className={`w-3.5 h-3.5 ${isJobRead ? 'text-emerald-600 fill-emerald-100' : ''}`}
                           />
                         </button>
                       </div>
@@ -897,9 +1165,14 @@ export default function App() {
                     </span>
 
                     <div className="flex items-center gap-1.5">
-                      {job.is_applied && (
+                      {isJobRead && (
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                          Applied ✓
+                          Read ✓
+                        </span>
+                      )}
+                      {isJobSaved && (
+                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                          Saved ★
                         </span>
                       )}
                       <span className="text-[11px] text-blue-600 font-semibold flex items-center gap-0.5 group-hover:underline">
@@ -1017,30 +1290,50 @@ export default function App() {
             <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
               {/* Status Action Buttons */}
               <div className="flex items-center gap-2">
+                {/* Save Job */}
                 <button
                   onClick={(e) => handleToggleSaved(e, selectedJob)}
                   className={`text-xs px-3 py-2 rounded-xl border font-semibold flex items-center gap-1.5 transition ${
-                    selectedJob.is_saved
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    currentUser && (currentUser.saved_job_ids || []).includes(selectedJob.id)
+                      ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <Bookmark className={`w-3.5 h-3.5 ${selectedJob.is_saved ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
-                  {selectedJob.is_saved ? 'Bookmarked' : 'Save'}
+                  <Bookmark
+                    className={`w-3.5 h-3.5 ${
+                      currentUser && (currentUser.saved_job_ids || []).includes(selectedJob.id)
+                        ? 'text-purple-600 fill-purple-600'
+                        : 'text-slate-400'
+                    }`}
+                  />
+                  <span>
+                    {currentUser && (currentUser.saved_job_ids || []).includes(selectedJob.id)
+                      ? 'Saved to Profile ★'
+                      : 'Save Job'}
+                  </span>
                 </button>
 
+                {/* Mark as Read */}
                 <button
-                  onClick={(e) => handleToggleApplied(e, selectedJob)}
+                  onClick={(e) => handleToggleRead(e, selectedJob)}
                   className={`text-xs px-3 py-2 rounded-xl border font-semibold flex items-center gap-1.5 transition ${
-                    selectedJob.is_applied
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    currentUser && (currentUser.read_job_ids || []).includes(selectedJob.id)
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   <CheckCircle2
-                    className={`w-3.5 h-3.5 ${selectedJob.is_applied ? 'text-emerald-600' : 'text-slate-400'}`}
+                    className={`w-3.5 h-3.5 ${
+                      currentUser && (currentUser.read_job_ids || []).includes(selectedJob.id)
+                        ? 'text-emerald-600 fill-emerald-100'
+                        : 'text-slate-400'
+                    }`}
                   />
-                  {selectedJob.is_applied ? 'Applied ✓' : 'Mark as Applied'}
+                  <span>
+                    {currentUser && (currentUser.read_job_ids || []).includes(selectedJob.id)
+                      ? 'Marked as Read ✓'
+                      : 'Mark as Read'}
+                  </span>
                 </button>
               </div>
 
@@ -1077,6 +1370,38 @@ export default function App() {
           if (savedConfig.job_roles) setCloudRoles(savedConfig.job_roles);
           if (savedConfig.locations) setCloudLocations(savedConfig.locations);
         }}
+      />
+
+      {/* 6. USER AUTH MODAL (Login / Signup with OTP / Forgot Password with OTP) */}
+      <UserAuthModal
+        isOpen={isUserAuthModalOpen}
+        initialMode={userAuthMode}
+        onClose={() => setIsUserAuthModalOpen(false)}
+        onLoginSuccess={(loggedInUser) => {
+          setCurrentUser(loggedInUser);
+          setSavedSession(loggedInUser);
+        }}
+      />
+
+      {/* 7. USER PROFILE MODAL */}
+      <UserProfileModal
+        isOpen={isUserProfileModalOpen}
+        user={currentUser}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        onLogout={handleLogout}
+        onFilterSaved={() => setStatusFilter('saved')}
+        onFilterRead={() => setStatusFilter('read')}
+        onOpenInstall={handleTriggerInstall}
+        isAppInstalled={isAppInstalled}
+      />
+
+      {/* 8. PWA INSTALL MODAL */}
+      <InstallPwaModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        onInstall={handleTriggerInstall}
+        canDirectInstall={canInstallPwa}
+        isInstalled={isAppInstalled}
       />
     </div>
   );

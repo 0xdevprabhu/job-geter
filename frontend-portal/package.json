@@ -1,5 +1,5 @@
 {
-  "name": "job-tracker-frontend",
+  "name": "zipzap-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -11,6 +11,7 @@
   "dependencies": {
     "firebase": "^10.14.1",
     "lucide-react": "^0.453.0",
+    "nodemailer": "^10.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

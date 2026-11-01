@@ -12,7 +12,11 @@ import {
   Clock,
   Sparkles,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Mail,
+  Key,
+  Send,
+  Loader2
 } from 'lucide-react';
 import { db, isFirebaseConfigured } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -68,6 +72,16 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
   const [hoursOld, setHoursOld] = useState(24);
   const [resultsPerRole, setResultsPerRole] = useState(25);
 
+  // Email / SMTP Settings State
+  const [smtpEmail, setSmtpEmail] = useState('');
+  const [smtpAppPassword, setSmtpAppPassword] = useState('');
+  const [testingSmtp, setTestingSmtp] = useState(false);
+  const [smtpStatusMsg, setSmtpStatusMsg] = useState('');
+
+  // 30-Day Cleanup State
+  const [cleaningJobs, setCleaningJobs] = useState(false);
+  const [cleanupResultMsg, setCleanupResultMsg] = useState('');
+
   // Load config from Firestore or default
   useEffect(() => {
     if (!isOpen) return;
@@ -76,6 +90,8 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
       setLoading(true);
       setErrorMsg('');
       setSuccessMsg('');
+      setSmtpStatusMsg('');
+      setCleanupResultMsg('');
 
       const fallbackConfig = {
         job_roles: [
@@ -112,9 +128,24 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
             setSites(data.sites_to_scrape || fallbackConfig.sites_to_scrape);
             setHoursOld(data.hours_old || 24);
             setResultsPerRole(data.results_per_role || 25);
-            setLoading(false);
-            return;
+          } else {
+            setRoles(fallbackConfig.job_roles);
+            setLocations(fallbackConfig.locations);
+            setSites(fallbackConfig.sites_to_scrape);
+            setHoursOld(fallbackConfig.hours_old);
+            setResultsPerRole(fallbackConfig.results_per_role);
           }
+
+          // Load SMTP settings
+          const smtpDocRef = doc(db, 'app_config', 'smtp_config');
+          const smtpSnap = await getDoc(smtpDocRef);
+          if (smtpSnap.exists()) {
+            const sData = smtpSnap.data();
+            setSmtpEmail(sData.smtp_email || '');
+            setSmtpAppPassword(sData.smtp_app_password || '');
+          }
+          setLoading(false);
+          return;
         } catch (err) {
           console.warn('Could not read app_config from Firestore:', err);
         }
@@ -190,7 +221,22 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
       if (isFirebaseConfigured && db) {
         const docRef = doc(db, 'app_config', 'job_search_config');
         await setDoc(docRef, newConfig, { merge: true });
-        setSuccessMsg('Successfully saved to Cloud Firestore! The Python scraper will use these exact settings on every run.');
+
+        // Save SMTP configuration
+        if (smtpEmail || smtpAppPassword) {
+          const cleanPass = smtpAppPassword.trim().replace(/\s+/g, '');
+          await setDoc(
+            doc(db, 'app_config', 'smtp_config'),
+            {
+              smtp_email: smtpEmail.trim(),
+              smtp_app_password: cleanPass,
+              updated_at: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        }
+
+        setSuccessMsg('Successfully saved to Cloud Firestore! Scraper and Gmail SMTP are configured.');
       } else {
         setSuccessMsg('Settings saved locally in session! Connect Firebase to sync with Cloud.');
       }
@@ -207,6 +253,68 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
       setErrorMsg(`Failed to save: ${err.message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Test Gmail SMTP Connection
+  const handleTestSmtp = async () => {
+    setTestingSmtp(true);
+    setSmtpStatusMsg('');
+
+    try {
+      // First save to Firestore so backend can use it
+      if (isFirebaseConfigured && db && (smtpEmail || smtpAppPassword)) {
+        await setDoc(
+          doc(db, 'app_config', 'smtp_config'),
+          {
+            smtp_email: smtpEmail.trim(),
+            smtp_app_password: smtpAppPassword.trim().replace(/\s+/g, ''),
+            updated_at: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+
+      const res = await fetch('/api/test-smtp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: smtpEmail }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSmtpStatusMsg('✅ Success! Connected to smtp.gmail.com and verified credentials.');
+      } else {
+        setSmtpStatusMsg(`❌ Error: ${data.error || 'Connection failed'}`);
+      }
+    } catch (e) {
+      setSmtpStatusMsg(`❌ Connection failed: ${e.message}`);
+    } finally {
+      setTestingSmtp(false);
+    }
+  };
+
+  // Run 30-Day Cleanup Now
+  const handleCleanupNow = async () => {
+    setCleaningJobs(true);
+    setCleanupResultMsg('');
+
+    try {
+      const res = await fetch('/api/cleanup-old-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success || data.deleted_jobs !== undefined) {
+        const deleted = data.deleted_jobs ?? 0;
+        const usersCleaned = data.users_cleaned ?? 0;
+        setCleanupResultMsg(`🧹 Cleaned! ${deleted} old jobs removed, ${usersCleaned} user profiles pruned.`);
+      } else {
+        setCleanupResultMsg(`❌ Cleanup error: ${data.error || 'Failed'}`);
+      }
+    } catch (e) {
+      setCleanupResultMsg(`❌ Cleanup failed: ${e.message}`);
+    } finally {
+      setCleaningJobs(false);
     }
   };
 
@@ -231,7 +339,7 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
             </div>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                Search Configuration & Admin Control
+                ZipZap Control Panel & Search Config
               </h2>
               <p className="text-[11px] sm:text-xs text-slate-500 truncate">
                 Roles, Locations (Tamil Nadu & India) & Scraping Limits
@@ -495,6 +603,110 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* SECTION 4: GMAIL OTP & 30-DAY RETENTION */}
+          <div className="pt-3 border-t border-slate-100 space-y-3">
+            {/* Gmail SMTP Configuration */}
+            <div className="p-3 sm:p-3.5 bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200/70 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Gmail SMTP & OTP Configuration (500 Mails/Day)</span>
+                </label>
+                <span className="text-[10px] text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full font-semibold">
+                  Google 16-Digit App Password
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Enter your Gmail address and your 16-character Google App Password (from Google Account → Security → 2-Step Verification → App Passwords). This is used to send 6-digit OTP codes for user registration & password resets.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1">
+                    Your Gmail Address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="yourname@gmail.com"
+                    value={smtpEmail}
+                    onChange={(e) => setSmtpEmail(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-600 mb-1">
+                    16-Digit Google App Password
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="xxxx xxxx xxxx xxxx"
+                    value={smtpAppPassword}
+                    onChange={(e) => setSmtpAppPassword(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestSmtp}
+                  disabled={testingSmtp || !smtpEmail}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 font-semibold text-xs flex items-center gap-1.5 shadow-2xs transition disabled:opacity-50"
+                >
+                  {testingSmtp ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Testing SMTP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Test Gmail Connection</span>
+                    </>
+                  )}
+                </button>
+                {smtpStatusMsg && (
+                  <span className="text-[11px] font-medium text-slate-700">{smtpStatusMsg}</span>
+                )}
+              </div>
+            </div>
+
+            {/* 30-Day Data Retention Card */}
+            <div className="p-3 bg-amber-50/70 border border-amber-200/70 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                  <span>30-Day Auto Retention Policy</span>
+                </div>
+                <p className="text-[11px] text-amber-800/80">
+                  All jobs older than 30 days are automatically removed from Firebase along with outdated marks.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCleanupNow}
+                  disabled={cleaningJobs}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition disabled:opacity-50 shrink-0"
+                >
+                  {cleaningJobs ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Cleaning...</span>
+                    </>
+                  ) : (
+                    <span>🧹 Run 30-Day Cleanup Now</span>
+                  )}
+                </button>
+              </div>
+            </div>
+            {cleanupResultMsg && (
+              <p className="text-[11px] text-slate-600 font-medium px-1">{cleanupResultMsg}</p>
+            )}
           </div>
         </div>
 

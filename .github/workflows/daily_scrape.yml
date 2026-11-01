@@ -1,4 +1,4 @@
-name: Daily Job Scraper & Tracker
+name: ZipZap Daily Job Scraper & Tracker
 
 on:
   schedule:
