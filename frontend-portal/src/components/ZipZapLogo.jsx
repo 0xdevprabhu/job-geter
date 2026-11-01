@@ -6,7 +6,7 @@ import React from 'react';
  */
 export default function ZipZapLogo({ size = 36, showText = true, className = '', textClassName = '' }) {
   return (
-    <div className={`flex items-center gap-2.5 select-none ${className}`}>
+    <div className={`flex items-center gap-1.5 sm:gap-2.5 select-none shrink-0 ${className}`}>
       {/* SVG Icon Emblem */}
       <div
         className="relative shrink-0 flex items-center justify-center rounded-2xl shadow-md shadow-blue-500/20 overflow-hidden group-hover:scale-105 transition-transform"
@@ -87,7 +87,7 @@ export default function ZipZapLogo({ size = 36, showText = true, className = '',
       {showText && (
         <div className={`flex flex-col ${textClassName}`}>
           <div className="flex items-center gap-1 leading-none">
-            <span className="text-xl sm:text-2xl font-black tracking-tight bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-700 bg-clip-text text-transparent">
+            <span className="text-lg sm:text-2xl font-black tracking-tight bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-700 bg-clip-text text-transparent">
               ZipZap
             </span>
             <span className="inline-block px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs">

@@ -585,20 +585,20 @@ export default function App() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 pb-20 font-sans">
       {/* 1. TOP NAVBAR */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-        <div className="max-w-[1780px] w-full mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+        <div className="max-w-[1780px] w-full mx-auto px-2.5 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-1.5 sm:gap-3">
           {/* Logo & Title - Secret Triple Click for Admin */}
           <div
             onClick={handleSecretLogoClick}
-            className="cursor-pointer select-none group"
+            className="cursor-pointer select-none group shrink-0"
             title="ZipZap - Instant Daily Job Radar (Click 3 times for Admin)"
           >
-            <ZipZapLogo size={42} showText={true} />
+            <ZipZapLogo size={38} showText={true} />
           </div>
 
           {/* Right Action Controls: Live Sync & User Profile / Login Icon */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Sync Status Badge */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs text-slate-600 shadow-sm">
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2 sm:px-3 py-1.5 text-xs text-slate-600 shadow-2xs shrink-0">
               <span className={`w-2 h-2 rounded-full ${isFirebaseConfigured && !demoMode ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
               <span className="font-medium hidden md:inline">
                 {isFirebaseConfigured && !demoMode ? 'Firestore Live Sync' : 'Demo Mode'}
@@ -609,12 +609,12 @@ export default function App() {
             {!isAppInstalled && (
               <button
                 onClick={handleTriggerInstall}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-xs hover:shadow transition transform hover:scale-[1.02] active:scale-[0.98] group"
+                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-2xs hover:shadow transition transform hover:scale-[1.02] active:scale-[0.98] group shrink-0 whitespace-nowrap"
                 title="Install ZipZap on your device (Desktop app / Android / iPhone)"
               >
                 <Download className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" />
                 <span className="hidden sm:inline">Install App</span>
-                <span className="sm:hidden">Install</span>
+                <span className="sm:hidden text-[11px] font-bold">Install</span>
               </button>
             )}
 
@@ -622,7 +622,7 @@ export default function App() {
             {currentUser && currentUser.email ? (
               <button
                 onClick={() => setIsUserProfileModalOpen(true)}
-                className="flex items-center gap-2 pl-2 pr-3 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 shadow-sm transition hover:border-blue-400 group"
+                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:pl-2 sm:pr-3 sm:py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs transition hover:border-blue-400 group shrink-0"
                 title={`Signed in as ${currentUser.email} (Click to view profile & logout)`}
               >
                 <div className="relative">
@@ -646,14 +646,14 @@ export default function App() {
                   setUserAuthMode('login');
                   setIsUserAuthModalOpen(true);
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 shadow-sm transition group"
+                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 shadow-2xs transition group shrink-0 whitespace-nowrap"
                 title="Click to Sign In or Sign Up with OTP"
               >
-                <div className="relative flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-400 group-hover:text-blue-600 transition">
+                <div className="relative flex items-center justify-center w-4 h-4 text-slate-500 group-hover:text-blue-600 transition">
                   <User className="w-3.5 h-3.5" />
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400 absolute -bottom-0.5 -right-0.5 ring-1 ring-white" />
                 </div>
-                <span>Sign In</span>
+                <span className="whitespace-nowrap text-[11px] sm:text-xs">Sign In</span>
               </button>
             )}
           </div>
