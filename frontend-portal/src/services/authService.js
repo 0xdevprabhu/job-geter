@@ -7,7 +7,7 @@ import {
   arrayUnion,
   arrayRemove,
   onSnapshot
-} from 'firebase/firestore';
+} from 'firebase/firestore'; 
 
 const USER_STORAGE_KEY = 'job_tracker_current_user';
 

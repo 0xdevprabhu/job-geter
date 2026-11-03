@@ -12,7 +12,7 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-    const testRecipient = (body.email || '').trim();
+    const testRecipient = (body.email || '').trim(); 
 
     const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || process.env.VITE_SMTP_USER || '0xdevprabhu@gmail.com').trim();
     const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.VITE_SMTP_PASS || 'qngz dnin hwir afxg';

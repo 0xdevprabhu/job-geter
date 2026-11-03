@@ -145,7 +145,7 @@ export default async function handler(req, res) {
           path: p,
           cid: 'zipzap_logo'
         });
-        break;
+        break; 
       }
     }
 
