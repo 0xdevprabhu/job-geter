@@ -4,6 +4,8 @@
 .env.*.local
 serviceAccountKey.json
 *.pem
+*.key
+ssh-key/
 backend-scraper/serviceAccountKey.json
 
 # Node & Frontend
