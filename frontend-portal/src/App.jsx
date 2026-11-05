@@ -662,42 +662,38 @@ export default function App() {
 
       {/* 2. MAIN FULL-WIDTH CONTAINER */}
       <main className="max-w-[1780px] w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 space-y-3.5">
-        {/* AUTOMATED 4X DAILY SCAN BANNER */}
-        <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/80 border border-blue-200/80 rounded-2xl p-2.5 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
+        {/* LIVE SYNC & PLATFORM SUMMARY BANNER */}
+        <div className="bg-gradient-to-r from-navy-50/80 via-white to-cyan-50/70 border border-slate-200/90 rounded-2xl p-2.5 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#01ABB9] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#01ABB9]"></span>
             </span>
             <div className="text-xs text-slate-800">
-              <span className="font-medium text-slate-600">Last Scraped & Synced: </span>
-              <strong className="text-blue-700 font-bold">{getLastSyncedISTDisplay()}</strong>
+              <span className="font-medium text-slate-500">Latest Live Sync: </span>
+              <strong className="text-[#002262] font-bold">{getLastSyncedISTDisplay()}</strong>
               <span className="text-slate-400 font-medium hidden sm:inline"> ({syncMetadata.last_synced_date || getTodayString()})</span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <div className="flex items-center gap-1.5 bg-white/90 px-3 py-1 rounded-xl border border-indigo-200/70 shadow-xs text-slate-700">
-              <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span>Next Automated Scan: <strong className="text-indigo-700 font-bold">{getNextSyncSlot()}</strong></span>
-            </div>
-
-            <span className="hidden lg:inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200/70">
-              ⚡ 4 Smart Daily Runs: 9:00 AM • 1:00 PM • 5:00 PM • 9:00 PM IST
+          <div className="flex items-center gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#002262] bg-white px-3 py-1 rounded-xl border border-slate-200/90 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#01ABB9]" />
+              Aggregated from 5 Major Hiring Portals
             </span>
           </div>
         </div>
 
         {/* 2.1 TOP STATS BAR WITH REAL BRAND ICONS */}
         <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
-          {/* Total Scraped */}
+          {/* Total Jobs */}
           <div className="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Scraped</span>
-              <Layers className="w-4 h-4 text-blue-600" />
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Active Jobs</span>
+              <Layers className="w-4 h-4 text-[#01ABB9]" />
             </div>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalJobsCount}</span>
+              <span className="text-2xl sm:text-3xl font-extrabold text-[#002262]">{totalJobsCount}</span>
               <span className="text-[11px] font-medium text-slate-500">{selectedDate}</span>
             </div>
           </div>
@@ -1233,7 +1229,7 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-1 text-slate-400">
                     <Clock className="w-3.5 h-3.5 shrink-0" />
-                    <span>Scraped: {selectedJob.scraped_date}</span>
+                    <span>Listed: {selectedJob.scraped_date}</span>
                   </div>
                 </div>
               </div>

@@ -236,7 +236,7 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
           );
         }
 
-        setSuccessMsg('Successfully saved to Cloud Firestore! Scraper and Gmail SMTP are configured.');
+        setSuccessMsg('Successfully saved to Cloud Firestore! Aggregator and Gmail SMTP are configured.');
       } else {
         setSuccessMsg('Settings saved locally in session! Connect Firebase to sync with Cloud.');
       }
@@ -342,7 +342,7 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                 ZipZap Control Panel & Search Config
               </h2>
               <p className="text-[11px] sm:text-xs text-slate-500 truncate">
-                Roles, Locations (Tamil Nadu & India) & Scraping Limits
+                Roles, Locations (Tamil Nadu & India) & Aggregation Parameters
               </p>
             </div>
           </div>
@@ -380,7 +380,7 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                 <Briefcase className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span>Target Roles & Keywords ({roles.length})</span>
               </label>
-              <span className="text-[10px] sm:text-[11px] text-slate-400">Scrapes across selected platforms</span>
+              <span className="text-[10px] sm:text-[11px] text-slate-400">Fetches live listings across selected platforms</span>
             </div>
 
             {/* Input to add custom role */}
@@ -524,13 +524,13 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
             </div>
           </div>
 
-          {/* SECTION 3: SITES TO SCRAPE & LIMITS */}
+          {/* SECTION 3: SITES TO AGGREGATE & LIMITS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pt-2 border-t border-slate-100">
             {/* Sites checkboxes */}
             <div className="space-y-1.5 sm:space-y-2">
               <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <span>Platforms To Scrape</span>
+                <span>Hiring Portals To Aggregate</span>
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-1 gap-1.5">
                 {ALL_SITES.map((site) => {
@@ -560,11 +560,11 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
               </div>
             </div>
 
-            {/* Scrape Parameters */}
+            {/* Fetch Parameters */}
             <div className="space-y-1.5 sm:space-y-2">
               <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>Scrape Limits & Frequency</span>
+                <span>Aggregation Depth & Frequency</span>
               </label>
 
               <div className="space-y-2 sm:space-y-3 bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-200">
@@ -578,7 +578,7 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                     onChange={(e) => setHoursOld(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
                   >
-                    <option value={12}>Past 12 Hours (Fresh only)</option>
+                    <option value={12}>Past 12 Hours (Fresh listings)</option>
                     <option value={24}>Past 24 Hours (Daily standard)</option>
                     <option value={48}>Past 48 Hours (Last 2 days)</option>
                     <option value={72}>Past 72 Hours (Weekend cover)</option>
@@ -598,7 +598,7 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
                     <option value={15}>15 jobs per role (Fast)</option>
                     <option value={25}>25 jobs per role (Balanced)</option>
                     <option value={50}>50 jobs per role (Comprehensive)</option>
-                    <option value={75}>75 jobs per role (Deep scan)</option>
+                    <option value={75}>75 jobs per role (Deep archive)</option>
                   </select>
                 </div>
               </div>
