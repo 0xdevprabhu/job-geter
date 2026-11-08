@@ -146,14 +146,17 @@ export async function verifyOtpCode(email, otp) {
   return { success: false, error: 'Invalid verification code. Please check your email and try again.' };
 }
 
-// Register a new user
-export async function registerUser(email, password) {
+// Register a new user with mandatory Full Name
+export async function registerUser(email, password, name = '') {
   const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanName = (name || '').trim();
   const salt = generateSalt();
   const passwordHash = await hashPassword(password, salt);
 
   const newUser = {
     email: cleanEmail,
+    name: cleanName,
+    displayName: cleanName,
     password_hash: passwordHash,
     salt,
     created_at: new Date().toISOString(),
@@ -169,11 +172,42 @@ export async function registerUser(email, password) {
 
   const session = {
     email: cleanEmail,
+    name: cleanName,
+    displayName: cleanName,
     saved_job_ids: [],
     read_job_ids: [],
   };
   setSavedSession(session);
   return { success: true, user: session };
+}
+
+// Update user's name in Firestore and Session
+export async function updateUserName(email, newName) {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanName = (newName || '').trim();
+
+  if (!cleanName) {
+    return { success: false, error: 'Name cannot be empty.' };
+  }
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const userRef = doc(db, 'users', cleanEmail);
+      await updateDoc(userRef, {
+        name: cleanName,
+        displayName: cleanName,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('Error updating name in Firestore:', err);
+    }
+  }
+
+  const session = getSavedSession() || {};
+  session.name = cleanName;
+  session.displayName = cleanName;
+  setSavedSession(session);
+  return { success: true, name: cleanName, user: session };
 }
 
 // Log in an existing user
@@ -184,6 +218,8 @@ export async function loginUser(email, password) {
     // Demo fallback login
     const demoSession = {
       email: cleanEmail,
+      name: cleanEmail.split('@')[0],
+      displayName: cleanEmail.split('@')[0],
       saved_job_ids: [],
       read_job_ids: [],
     };
@@ -216,8 +252,12 @@ export async function loginUser(email, password) {
     await updateDoc(userRef, { last_login_at: new Date().toISOString() });
   } catch {}
 
+  const userName = userData.name || userData.displayName || cleanEmail.split('@')[0];
+
   const session = {
     email: cleanEmail,
+    name: userName,
+    displayName: userName,
     saved_job_ids: userData.saved_job_ids || [],
     read_job_ids: userData.read_job_ids || [],
   };
@@ -240,12 +280,8 @@ export async function resetPassword(email, newPassword) {
     });
   }
 
-  // Log in user
-  const session = {
-    email: cleanEmail,
-    saved_job_ids: [],
-    read_job_ids: [],
-  };
+  const session = getSavedSession() || {};
+  session.email = cleanEmail;
   setSavedSession(session);
   return { success: true, user: session };
 }
@@ -265,6 +301,27 @@ export async function toggleSavedJob(email, jobId, isCurrentlySaved) {
       console.error('Error toggling saved job in Firestore:', err);
     }
   }
+}
+
+// Synchronize / Clean deleted job IDs from user's saved list in Firestore
+export async function cleanMissingSavedJobs(email, validJobIds) {
+  if (!email || !Array.isArray(validJobIds)) return;
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const userRef = doc(db, 'users', cleanEmail);
+      await updateDoc(userRef, {
+        saved_job_ids: validJobIds,
+      });
+    } catch (err) {
+      console.warn('Could not sync valid saved job IDs:', err);
+    }
+  }
+
+  const session = getSavedSession() || {};
+  session.saved_job_ids = validJobIds;
+  setSavedSession(session);
 }
 
 // Toggle read job ID for a user
@@ -298,6 +355,8 @@ export function subscribeToUserData(email, callback) {
         const data = snap.data();
         callback({
           email: cleanEmail,
+          name: data.name || data.displayName || cleanEmail.split('@')[0],
+          displayName: data.name || data.displayName || cleanEmail.split('@')[0],
           saved_job_ids: data.saved_job_ids || [],
           read_job_ids: data.read_job_ids || [],
           created_at: data.created_at || null,
@@ -309,4 +368,3 @@ export function subscribeToUserData(email, callback) {
     }
   );
 }
-

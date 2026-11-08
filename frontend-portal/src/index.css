@@ -4,36 +4,57 @@
 
 @layer base {
   body {
-    @apply bg-[#F6F9FC] text-slate-900 min-h-screen font-sans;
+    @apply bg-[#F4F7FC] text-slate-800 min-h-screen font-sans antialiased selection:bg-blue-100 selection:text-blue-900;
     background-image: 
-      radial-gradient(at 0% 0%, rgba(1, 171, 185, 0.06) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, rgba(0, 34, 98, 0.05) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, rgba(246, 249, 252, 1) 0px, transparent 100%);
+      radial-gradient(at 0% 0%, rgba(30, 96, 255, 0.03) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(1, 171, 185, 0.03) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, rgba(244, 247, 252, 1) 0px, transparent 100%);
     background-attachment: fixed;
   }
 }
 
-/* Custom crisp scrollbar */
+/* Custom sleek scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(241, 245, 249, 0.8);
+  background: rgba(241, 245, 249, 0.6);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(203, 213, 225, 0.9);
-  border-radius: 4px;
+  background: rgba(203, 213, 225, 0.8);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 1);
 }
 
-/* Smooth micro-interactions */
+/* Smooth micro-interactions & card animations */
 .job-card {
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
 }
 
 .job-card:hover {
   transform: translateY(-2px);
+}
+
+/* Hide scrollbar for clean modern horizontal pill swiping */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom utility for glassmorphic elements */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Safe area inset for mobile bottom nav bar */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Briefcase,
   Calendar,
@@ -6,30 +6,33 @@ import {
   Search,
   ExternalLink,
   Bookmark,
-  BookmarkCheck,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Filter,
-  Layers,
-  Sparkles,
+  ChevronDown,
+  LayoutDashboard,
+  Compass,
+  Send,
+  BarChart2,
+  TrendingUp,
+  Bell,
+  X,
   Copy,
   Check,
-  X,
+  RotateCcw,
   RefreshCw,
   Building2,
-  Globe,
   Clock,
   ArrowUpRight,
-  Sliders,
-  SlidersHorizontal,
-  RotateCcw,
-  Tag,
-  User,
-  Eye,
-  EyeOff,
   Download,
-  Smartphone
+  Eye,
+  SlidersHorizontal,
+  Sparkles,
+  ArrowRight,
+  User,
+  LogIn,
+  Filter,
+  CheckCheck
 } from 'lucide-react';
 import { db, isFirebaseConfigured } from './firebase';
 import {
@@ -44,6 +47,12 @@ import {
 import { generateSampleJobs } from './demoData';
 import PortalIcon from './components/PortalIcon';
 import ZipZapLogo from './components/ZipZapLogo';
+import {
+  HeroIllustration,
+  RocketIllustration,
+  EmptySearchIllustration,
+  SparklineBars
+} from './components/Illustrations';
 import AdminConfigModal from './components/AdminConfigModal';
 import AdminAuthModal from './components/AdminAuthModal';
 import UserAuthModal from './components/UserAuthModal';
@@ -54,18 +63,9 @@ import {
   setSavedSession,
   toggleSavedJob,
   toggleReadJob,
-  subscribeToUserData
+  subscribeToUserData,
+  cleanMissingSavedJobs
 } from './services/authService';
-
-// Source brand pill styling
-const SOURCE_PILL_STYLES = {
-  All: 'hover:border-slate-300',
-  LinkedIn: 'hover:border-[#0A66C2]/40',
-  Indeed: 'hover:border-[#2164F3]/40',
-  Naukri: 'hover:border-[#004ECC]/40',
-  Glassdoor: 'hover:border-[#0CAA41]/40',
-  RemoteOK: 'hover:border-[#8B5CF6]/40',
-};
 
 export default function App() {
   // Always calculate current date strictly in Indian Standard Time (IST / Asia/Kolkata)
@@ -86,19 +86,39 @@ export default function App() {
       timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit',
+      day: '2-digit'
     }).format(d);
+  };
+
+  // Format date for display matching inspiration screenshot: DD/MM/YYYY
+  const formatDisplayDate = (dateStr) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
   };
 
   // Primary state
   const [selectedDate, setSelectedDate] = useState(getTodayString);
   const [jobs, setJobs] = useState([]);
+  const [allSavedJobs, setAllSavedJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [demoMode, setDemoMode] = useState(!isFirebaseConfigured);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Active Navigation Tab: 'dashboard' | 'discover' | 'saved' | 'applications' | 'insights'
+  const [activeNav, setActiveNav] = useState('dashboard');
+
+  // Notification Drawer State
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  // Mobile Filter Bottom Sheet Modal State
+  const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = useState(false);
 
   // User Auth & Session States
   const [currentUser, setCurrentUser] = useState(() => getSavedSession());
@@ -112,8 +132,25 @@ export default function App() {
   const [isAppInstalled, setIsAppInstalled] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
+  // Search input ref & Date input ref
+  const searchInputRef = useRef(null);
+  const dateInputRef = useRef(null);
+  const mobileDateInputRef = useRef(null);
+
+  // Keyboard shortcut listener for Ctrl+K / Cmd+K
   useEffect(() => {
-    // Check if already in standalone PWA window
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // PWA listeners
+  useEffect(() => {
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       window.navigator.standalone === true;
@@ -156,7 +193,7 @@ export default function App() {
     }
   };
 
-  // Subscribe to real-time updates for logged-in user's saved & read lists
+  // Subscribe to real-time updates for logged-in user's saved & read lists and name
   useEffect(() => {
     if (!currentUser?.email) return;
 
@@ -170,6 +207,57 @@ export default function App() {
 
     return () => unsubscribe();
   }, [currentUser?.email]);
+
+  // Synchronize / Fetch All Saved Jobs across all dates
+  useEffect(() => {
+    if (!currentUser?.email) {
+      setAllSavedJobs([]);
+      return;
+    }
+    const savedIds = currentUser.saved_job_ids || [];
+    if (savedIds.length === 0) {
+      setAllSavedJobs([]);
+      return;
+    }
+
+    if (!isFirebaseConfigured || demoMode || !db) {
+      const samples = generateSampleJobs();
+      const matched = samples.filter((j) => savedIds.includes(j.id));
+      setAllSavedJobs(matched);
+      return;
+    }
+
+    let isMounted = true;
+    async function loadSavedJobs() {
+      try {
+        const validSaved = [];
+        const validIds = [];
+
+        for (const id of savedIds) {
+          const docRef = doc(db, 'daily_jobs', id);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            validSaved.push({ id: snap.id, ...snap.data() });
+            validIds.push(id);
+          }
+        }
+
+        if (!isMounted) return;
+        setAllSavedJobs(validSaved);
+
+        // Auto-clean any saved job IDs that were deleted from Firebase
+        if (validIds.length !== savedIds.length) {
+          cleanMissingSavedJobs(currentUser.email, validIds);
+          setCurrentUser((prev) => ({ ...prev, saved_job_ids: validIds }));
+        }
+      } catch (err) {
+        console.warn('Error loading saved jobs:', err);
+      }
+    }
+
+    loadSavedJobs();
+    return () => { isMounted = false; };
+  }, [currentUser?.email, currentUser?.saved_job_ids, demoMode]);
 
   // Secret 3-Clicks Easter Egg on Logo to unlock Admin Panel
   const [logoClicks, setLogoClicks] = useState(0);
@@ -196,9 +284,9 @@ export default function App() {
   const [selectedRole, setSelectedRole] = useState('All');
   const [selectedLocation, setSelectedLocation] = useState('All');
   const [selectedSource, setSelectedSource] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'saved', 'applied'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'saved', 'unread', 'read', 'applied'
 
-  // Dynamic config roles & locations (loaded from Firestore or local)
+  // Dynamic config roles & locations
   const [cloudRoles, setCloudRoles] = useState([
     'PHP Developer',
     'Laravel Developer',
@@ -219,14 +307,13 @@ export default function App() {
     'Remote'
   ]);
 
-  // Automated 4x Daily Sync Metadata in Indian Standard Time (IST)
+  // Automated Sync Metadata in IST
   const [syncMetadata, setSyncMetadata] = useState({
     last_synced_time: '10:55 PM IST',
     last_synced_date: getTodayString(),
     status: 'success'
   });
 
-  // Format last synced timestamp strictly to Indian Standard Time (IST)
   const getLastSyncedISTDisplay = () => {
     if (syncMetadata.last_synced_at) {
       try {
@@ -249,12 +336,10 @@ export default function App() {
     return 'Recent (IST)';
   };
 
-  // Calculate upcoming scheduled scan time strictly in IST (9:00 AM, 1:00 PM, 5:00 PM, 9:00 PM IST)
   const getNextSyncSlot = () => {
     const now = new Date();
-    // Convert strictly to IST (UTC + 5:30)
     const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-    const istMinutes = (utcMinutes + 330) % 1440; // 5 hours 30 mins = 330 mins
+    const istMinutes = (utcMinutes + 330) % 1440;
     const istHours = istMinutes / 60;
 
     if (istHours < 9) return 'Today at 09:00 AM IST';
@@ -280,7 +365,6 @@ export default function App() {
           console.warn('Could not load app_config from Firestore:', e);
         }
 
-        // Listen for live sync status updates
         try {
           const syncDocRef = doc(db, 'app_config', 'sync_status');
           const unsubscribeSync = onSnapshot(syncDocRef, (snap) => {
@@ -330,7 +414,6 @@ export default function App() {
             snapshot.forEach((docSnap) => {
               fetched.push({ id: docSnap.id, ...docSnap.data() });
             });
-            // Sort: unapplied first, then by date_posted desc
             fetched.sort((a, b) => {
               if (a.is_applied === b.is_applied) {
                 return (b.date_posted || '').localeCompare(a.date_posted || '');
@@ -367,7 +450,7 @@ export default function App() {
     setIsLoading(false);
   };
 
-  // Toggle Saved status (Per-User Firestore & Local state)
+  // Toggle Saved status
   const handleToggleSaved = async (e, job) => {
     e?.stopPropagation();
     if (!currentUser) {
@@ -389,7 +472,7 @@ export default function App() {
     await toggleSavedJob(currentUser.email, job.id, isCurrentlySaved);
   };
 
-  // Toggle Read status (Per-User Firestore & Local state)
+  // Toggle Read status
   const handleToggleRead = async (e, job) => {
     e?.stopPropagation();
     if (!currentUser) {
@@ -448,11 +531,10 @@ export default function App() {
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  // Extract distinct locations from data + cloud config
+  // Available locations
   const availableLocations = useMemo(() => {
     const locSet = new Set();
     cloudLocations.forEach((loc) => {
-      // Add city clean name
       const primary = loc.split(',')[0].trim();
       locSet.add(primary);
     });
@@ -468,7 +550,7 @@ export default function App() {
     return Array.from(locSet).filter(Boolean);
   }, [jobs, cloudLocations]);
 
-  // Extract distinct roles from data + cloud config
+  // Available roles
   const availableRoles = useMemo(() => {
     const roleSet = new Set(cloudRoles);
     jobs.forEach((j) => {
@@ -477,10 +559,11 @@ export default function App() {
     return Array.from(roleSet).filter(Boolean);
   }, [jobs, cloudRoles]);
 
-  // Filtered jobs calculation
+  // Filtered jobs calculation (supports saved jobs from ANY date)
   const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => {
-      // Keyword search (title, company, location, category)
+    const sourceList = statusFilter === 'saved' ? allSavedJobs : jobs;
+
+    return sourceList.filter((job) => {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -489,31 +572,26 @@ export default function App() {
         (job.location && job.location.toLowerCase().includes(q)) ||
         (job.search_category && job.search_category.toLowerCase().includes(q));
 
-      // Role filter
       const matchesRole =
         selectedRole === 'All' ||
         (job.search_category &&
           job.search_category.toLowerCase() === selectedRole.toLowerCase());
 
-      // Location filter
       const matchesLocation =
         selectedLocation === 'All' ||
         (job.location &&
           job.location.toLowerCase().includes(selectedLocation.toLowerCase()));
 
-      // Source app filter
       const matchesSource =
         selectedSource === 'All' ||
         (job.source_app &&
           job.source_app.toLowerCase() === selectedSource.toLowerCase());
 
-      // Status filter (Per-User Saved, Unread, Read)
       let matchesStatus = true;
-      const userSaved = currentUser?.saved_job_ids || [];
       const userRead = currentUser?.read_job_ids || [];
 
       if (statusFilter === 'saved') {
-        matchesStatus = userSaved.includes(job.id);
+        matchesStatus = true; // Sourced directly from allSavedJobs
       } else if (statusFilter === 'unread') {
         matchesStatus = !userRead.includes(job.id);
       } else if (statusFilter === 'read') {
@@ -524,9 +602,9 @@ export default function App() {
 
       return matchesSearch && matchesRole && matchesLocation && matchesSource && matchesStatus;
     });
-  }, [jobs, searchQuery, selectedRole, selectedLocation, selectedSource, statusFilter, currentUser]);
+  }, [jobs, allSavedJobs, searchQuery, selectedRole, selectedLocation, selectedSource, statusFilter, currentUser]);
 
-  // Dynamic Platform Counts for selected date
+  // Dynamic Platform Counts
   const platformCounts = useMemo(() => {
     const counts = {
       Naukri: 0,
@@ -549,14 +627,8 @@ export default function App() {
   const totalJobsCount = jobs.length;
   const appliedJobsCount = jobs.filter((j) => j.is_applied).length;
 
-  // Real-time Per-User Counts for current day's jobs
-  const userSavedCount = useMemo(() => {
-    if (!currentUser?.saved_job_ids?.length) return 0;
-    const set = new Set(currentUser.saved_job_ids);
-    return jobs.filter((j) => set.has(j.id)).length;
-  }, [jobs, currentUser?.saved_job_ids]);
-
-  const savedJobsCount = userSavedCount;
+  // Total saved jobs across all dates
+  const userSavedCount = currentUser?.saved_job_ids?.length || allSavedJobs.length || 0;
 
   const userReadCount = useMemo(() => {
     if (!currentUser?.read_job_ids?.length) return 0;
@@ -566,12 +638,19 @@ export default function App() {
 
   const userUnreadCount = Math.max(0, jobs.length - userReadCount);
 
-  const isAnyFilterActive =
-    searchQuery ||
-    selectedRole !== 'All' ||
-    selectedLocation !== 'All' ||
-    selectedSource !== 'All' ||
-    statusFilter !== 'all';
+  // Active filters count indicator
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedRole !== 'All') count++;
+    if (selectedLocation !== 'All') count++;
+    if (selectedSource !== 'All') count++;
+    if (statusFilter !== 'all') count++;
+    if (searchQuery.trim()) count++;
+    if (selectedDate !== getTodayString() && statusFilter !== 'saved') count++;
+    return count;
+  }, [selectedRole, selectedLocation, selectedSource, statusFilter, searchQuery, selectedDate]);
+
+  const isAnyFilterActive = activeFiltersCount > 0;
 
   const resetAllFilters = () => {
     setSearchQuery('');
@@ -579,237 +658,680 @@ export default function App() {
     setSelectedLocation('All');
     setSelectedSource('All');
     setStatusFilter('all');
+    setActiveNav('dashboard');
+  };
+
+  // User details (ONLY when logged in)
+  const userDisplayName = currentUser
+    ? currentUser.displayName || currentUser.name || (currentUser.email ? currentUser.email.split('@')[0] : 'User')
+    : null;
+
+  // Derive initial from name (alphabetical character, so 0xdevprabhu gives D, not 0)
+  const userInitial = useMemo(() => {
+    if (!userDisplayName) return null;
+    const clean = userDisplayName.trim();
+    const match = clean.match(/[a-zA-Z]/);
+    return match ? match[0].toUpperCase() : clean.charAt(0).toUpperCase();
+  }, [userDisplayName]);
+
+  // Navigation handlers
+  const handleNavClick = (nav) => {
+    setActiveNav(nav);
+    if (nav === 'saved') {
+      if (!currentUser) {
+        setUserAuthMode('login');
+        setIsUserAuthModalOpen(true);
+      } else {
+        setStatusFilter('saved');
+      }
+    } else if (nav === 'applications') {
+      setStatusFilter('applied');
+    } else if (nav === 'discover') {
+      resetAllFilters();
+      searchInputRef.current?.focus();
+    } else if (nav === 'dashboard') {
+      setStatusFilter('all');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 pb-20 font-sans">
-      {/* 1. TOP NAVBAR */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-        <div className="max-w-[1780px] w-full mx-auto px-2.5 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-1.5 sm:gap-3">
-          {/* Logo & Title - Secret Triple Click for Admin */}
-          <div
-            onClick={handleSecretLogoClick}
-            className="cursor-pointer select-none group shrink-0"
-            title="ZipZap - Instant Daily Job Radar (Click 3 times for Admin)"
-          >
-            <ZipZapLogo size={38} showText={true} />
-          </div>
+    <div className="min-h-screen bg-[#F4F7FC] text-slate-800 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
+      {/* ========================================================= */}
+      {/* 1. MOBILE TOP STICKY HEADER                               */}
+      {/* ========================================================= */}
+      <header className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between shadow-2xs">
+        <div
+          onClick={handleSecretLogoClick}
+          className="cursor-pointer select-none"
+          title="ZipZap Jobs (Click 3 times for Admin)"
+        >
+          <ZipZapLogo size={34} showText={true} subtitle="Jobs" />
+        </div>
 
-          {/* Right Action Controls: Live Sync & User Profile / Login Icon */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            {/* Sync Status Badge */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2 sm:px-3 py-1.5 text-xs text-slate-600 shadow-2xs shrink-0">
-              <span className={`w-2 h-2 rounded-full ${isFirebaseConfigured && !demoMode ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-              <span className="font-medium hidden md:inline">
-                {isFirebaseConfigured && !demoMode ? 'Firestore Live Sync' : 'Demo Mode'}
-              </span>
+        <div className="flex items-center gap-2">
+          {/* PWA Install Button */}
+          {!isAppInstalled && (
+            <button
+              onClick={handleTriggerInstall}
+              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
+              title="Install ZipZap App"
+            >
+              <Download className="w-4 h-4 text-[#1E60FF]" />
+            </button>
+          )}
+
+          {/* Notification Bell (Only in mobile top header) */}
+          <button
+            onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+            className="relative p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4 text-slate-700" />
+            <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
+          </button>
+
+          {/* User Auth: Avatar if Logged In / Sign In Button if Logged Out */}
+          {currentUser ? (
+            <button
+              onClick={() => setIsUserProfileModalOpen(true)}
+              className="w-8 h-8 rounded-full bg-[#002262] text-white flex items-center justify-center font-black text-xs shadow-xs"
+              title={`Profile: ${currentUser.email}`}
+            >
+              {userInitial}
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setUserAuthMode('login');
+                setIsUserAuthModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1E60FF] hover:bg-[#1B54E0] text-white text-xs font-bold shadow-xs transition"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* ========================================================= */}
+      {/* 2. MAIN LAYOUT (Sidebar + Dashboard)                      */}
+      {/* ========================================================= */}
+      <div className="flex-1 max-w-[1720px] w-full mx-auto p-3 sm:p-5 lg:p-6 flex gap-6">
+        {/* ------------------------------------------------------- */}
+        {/* 2.1 DESKTOP LEFT SIDEBAR                                */}
+        {/* ------------------------------------------------------- */}
+        <aside className="hidden lg:flex w-64 xl:w-72 shrink-0 bg-white rounded-3xl p-5 border border-slate-200/70 shadow-[0_4px_25px_rgba(0,0,0,0.03)] flex-col justify-between sticky top-6 h-[calc(100vh-3rem)]">
+          <div className="space-y-6">
+            {/* Brand Logo in Sidebar with authentic image */}
+            <div
+              onClick={handleSecretLogoClick}
+              className="cursor-pointer select-none pt-1"
+              title="ZipZap Jobs - Daily Multi-Portal Aggregator (Click 3 times for Admin)"
+            >
+              <ZipZapLogo size={42} showText={true} stacked={true} subtitle="Jobs" />
             </div>
 
-            {/* PWA INSTALL APP BUTTON */}
-            {!isAppInstalled && (
+            {/* Navigation Menu */}
+            <nav className="space-y-1.5 pt-2">
               <button
-                onClick={handleTriggerInstall}
-                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-2xs hover:shadow transition transform hover:scale-[1.02] active:scale-[0.98] group shrink-0 whitespace-nowrap"
-                title="Install ZipZap on your device (Desktop app / Android / iPhone)"
+                onClick={() => handleNavClick('dashboard')}
+                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                  activeNav === 'dashboard'
+                    ? 'bg-[#1E60FF] text-white shadow-lg shadow-blue-500/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
               >
-                <Download className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform" />
-                <span className="hidden sm:inline">Install App</span>
-                <span className="sm:hidden text-[11px] font-bold">Install</span>
+                <LayoutDashboard className="w-5 h-5 shrink-0" />
+                <span>Dashboard</span>
               </button>
-            )}
 
-            {/* USER ACCOUNT ICON (Before login -> Sign In indicator / After login -> Active User Badge) */}
-            {currentUser && currentUser.email ? (
               <button
-                onClick={() => setIsUserProfileModalOpen(true)}
-                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:pl-2 sm:pr-3 sm:py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs transition hover:border-blue-400 group shrink-0"
-                title={`Signed in as ${currentUser.email} (Click to view profile & logout)`}
+                onClick={() => handleNavClick('discover')}
+                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                  activeNav === 'discover'
+                    ? 'bg-[#1E60FF] text-white shadow-lg shadow-blue-500/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
               >
-                <div className="relative">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-xs">
-                    {(currentUser.email || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 absolute -bottom-0.5 -right-0.5 ring-2 ring-white" />
-                </div>
-                <div className="text-left hidden sm:block">
-                  <div className="text-[11px] font-bold text-slate-800 leading-tight truncate max-w-[120px]">
-                    {currentUser.email.includes('@') ? currentUser.email.split('@')[0] : currentUser.email}
-                  </div>
-                  <div className="text-[10px] text-emerald-600 font-medium leading-none">
-                    Signed In
-                  </div>
-                </div>
+                <Compass className="w-5 h-5 shrink-0" />
+                <span>Discover</span>
               </button>
+
+              <button
+                onClick={() => handleNavClick('saved')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                  activeNav === 'saved'
+                    ? 'bg-[#1E60FF] text-white shadow-lg shadow-blue-500/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <Bookmark className="w-5 h-5 shrink-0" />
+                  <span>Saved</span>
+                </div>
+                {userSavedCount > 0 && (
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                      activeNav === 'saved' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {userSavedCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleNavClick('applications')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                  activeNav === 'applications'
+                    ? 'bg-[#1E60FF] text-white shadow-lg shadow-blue-500/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <Send className="w-5 h-5 shrink-0" />
+                  <span>Applications</span>
+                </div>
+                {appliedJobsCount > 0 && (
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                      activeNav === 'applications' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {appliedJobsCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleNavClick('insights')}
+                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                  activeNav === 'insights'
+                    ? 'bg-[#1E60FF] text-white shadow-lg shadow-blue-500/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <BarChart2 className="w-5 h-5 shrink-0" />
+                <span>Insights</span>
+              </button>
+            </nav>
+          </div>
+
+          <div className="space-y-4">
+            {/* Promo Card: Build a Better Career */}
+            <div className="relative rounded-2xl bg-gradient-to-b from-[#EBF4FE] to-[#DFEDFE] p-4 text-center border border-blue-100 overflow-hidden shadow-2xs">
+              <div className="flex justify-center -mt-1 mb-1">
+                <RocketIllustration className="w-16 h-16 drop-shadow-sm" />
+              </div>
+              <h4 className="text-sm font-black text-slate-900 tracking-tight leading-snug">
+                Build a Better Career
+              </h4>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5 mb-3">
+                One Job at a Time
+              </p>
+              <button
+                onClick={() => {
+                  resetAllFilters();
+                  setActiveNav('dashboard');
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-[#1E60FF] hover:bg-[#1B54E0] text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-1.5"
+              >
+                <span>Explore Jobs</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* User Profile Footer: Signed In State vs Clear Sign In Prompt */}
+            {currentUser ? (
+              <div
+                onClick={() => setIsUserProfileModalOpen(true)}
+                className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 cursor-pointer transition select-none"
+                title={`Signed in as ${currentUser.email}`}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <div className="w-8 h-8 rounded-full bg-[#002262] text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-xs">
+                    {userInitial}
+                  </div>
+                  <div className="truncate text-left">
+                    <div className="text-xs font-extrabold text-slate-900 truncate">
+                      {userDisplayName}
+                    </div>
+                    <div className="text-[10px] text-emerald-600 font-semibold">
+                      Active Member
+                    </div>
+                  </div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 mr-1" />
+              </div>
             ) : (
               <button
                 onClick={() => {
                   setUserAuthMode('login');
                   setIsUserAuthModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 shadow-2xs transition group shrink-0 whitespace-nowrap"
-                title="Click to Sign In or Sign Up with OTP"
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200/80 cursor-pointer transition select-none group shadow-2xs"
               >
-                <div className="relative flex items-center justify-center w-4 h-4 text-slate-500 group-hover:text-blue-600 transition">
-                  <User className="w-3.5 h-3.5" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 absolute -bottom-0.5 -right-0.5 ring-1 ring-white" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#1E60FF] text-white flex items-center justify-center font-bold text-xs shadow-xs group-hover:scale-105 transition-transform">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs font-black text-slate-900 group-hover:text-blue-600 transition">
+                      Sign In / Register
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium">
+                      Save jobs & sync profile
+                    </div>
+                  </div>
                 </div>
-                <span className="whitespace-nowrap text-[11px] sm:text-xs">Sign In</span>
+                <ChevronRight className="w-4 h-4 text-blue-600 group-hover:translate-x-0.5 transition-transform" />
               </button>
             )}
           </div>
-        </div>
-      </header>
+        </aside>
 
-      {/* 2. MAIN FULL-WIDTH CONTAINER */}
-      <main className="max-w-[1780px] w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 space-y-3.5">
-        {/* LIVE SYNC & PLATFORM SUMMARY BANNER */}
-        <div className="bg-gradient-to-r from-navy-50/80 via-white to-cyan-50/70 border border-slate-200/90 rounded-2xl p-2.5 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#01ABB9] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#01ABB9]"></span>
-            </span>
-            <div className="text-xs text-slate-800">
-              <span className="font-medium text-slate-500">Latest Live Sync: </span>
-              <strong className="text-[#002262] font-bold">{getLastSyncedISTDisplay()}</strong>
-              <span className="text-slate-400 font-medium hidden sm:inline"> ({syncMetadata.last_synced_date || getTodayString()})</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#002262] bg-white px-3 py-1 rounded-xl border border-slate-200/90 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#01ABB9]" />
-              Aggregated from 5 Major Hiring Portals
-            </span>
-          </div>
-        </div>
-
-        {/* 2.1 TOP STATS BAR WITH REAL BRAND ICONS */}
-        <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
-          {/* Total Jobs */}
-          <div className="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Active Jobs</span>
-              <Layers className="w-4 h-4 text-[#01ABB9]" />
-            </div>
-            <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold text-[#002262]">{totalJobsCount}</span>
-              <span className="text-[11px] font-medium text-slate-500">{selectedDate}</span>
-            </div>
-          </div>
-
-          {/* Naukri */}
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <PortalIcon source="Naukri" className="w-4 h-4" />
-                <span className="text-xs font-bold text-slate-700">Naukri</span>
+        {/* ------------------------------------------------------- */}
+        {/* 2.2 MAIN CONTENT AREA                                    */}
+        {/* ------------------------------------------------------- */}
+        <main className="flex-1 min-w-0 space-y-3.5 sm:space-y-4 pb-20 lg:pb-6">
+          {/* ===================================================== */}
+          {/* TOP SEARCH BAR (Desktop action icons only on desktop) */}
+          {/* ===================================================== */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Search Input Bar with Ctrl+K shortcut pill */}
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search by job title, company, or keywords (e.g. React, Zoho, PHP...)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-slate-200/90 rounded-2xl pl-10 pr-20 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#1E60FF] focus:ring-2 focus:ring-[#1E60FF]/20 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition"
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="p-1 text-slate-400 hover:text-slate-600 transition"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold text-slate-400 bg-slate-100 rounded-md border border-slate-200/60 select-none">
+                  Ctrl + K
+                </span>
               </div>
-              <span className="text-[10px] font-semibold text-slate-400">Portal</span>
             </div>
-            <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl sm:text-2xl font-extrabold text-slate-900">{platformCounts.Naukri}</span>
-              <span className="text-[11px] text-blue-600 font-semibold">Live</span>
-            </div>
-          </div>
 
-          {/* Indeed */}
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <PortalIcon source="Indeed" className="w-4 h-4" />
-                <span className="text-xs font-bold text-slate-700">Indeed</span>
+            {/* DESKTOP-ONLY Action Cluster (HIDDEN ON MOBILE to prevent duplicate bell) */}
+            <div className="hidden lg:flex items-center gap-2 shrink-0">
+              {/* Firestore Live Sync Pill */}
+              <div
+                className="flex items-center gap-1.5 px-3 py-2 bg-white rounded-2xl border border-slate-200/80 shadow-2xs text-xs font-semibold text-slate-700"
+                title={`Last synced: ${getLastSyncedISTDisplay()}`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[11px] font-bold text-slate-600">
+                  {isFirebaseConfigured && !demoMode ? 'Live Sync' : 'Demo Mode'}
+                </span>
               </div>
-              <span className="text-[10px] font-semibold text-slate-400">Portal</span>
-            </div>
-            <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl sm:text-2xl font-extrabold text-slate-900">{platformCounts.Indeed}</span>
-              <span className="text-[11px] text-[#2164F3] font-semibold">Live</span>
-            </div>
-          </div>
 
-          {/* LinkedIn */}
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <PortalIcon source="LinkedIn" className="w-4 h-4" />
-                <span className="text-xs font-bold text-slate-700">LinkedIn</span>
-              </div>
-              <span className="text-[10px] font-semibold text-slate-400">Portal</span>
-            </div>
-            <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl sm:text-2xl font-extrabold text-slate-900">{platformCounts.LinkedIn}</span>
-              <span className="text-[11px] text-[#0A66C2] font-semibold">Live</span>
-            </div>
-          </div>
-
-          {/* Glassdoor */}
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <PortalIcon source="Glassdoor" className="w-4 h-4" />
-                <span className="text-xs font-bold text-slate-700">Glassdoor</span>
-              </div>
-              <span className="text-[10px] font-semibold text-slate-400">Portal</span>
-            </div>
-            <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl sm:text-2xl font-extrabold text-slate-900">{platformCounts.Glassdoor}</span>
-              <span className="text-[11px] text-[#0CAA41] font-semibold">Live</span>
-            </div>
-          </div>
-
-          {/* RemoteOK */}
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <PortalIcon source="RemoteOK" className="w-4 h-4" />
-                <span className="text-xs font-bold text-slate-700">RemoteOK</span>
-              </div>
-              <span className="text-[10px] font-semibold text-slate-400">Global</span>
-            </div>
-            <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl sm:text-2xl font-extrabold text-slate-900">{platformCounts.RemoteOK}</span>
-              <span className="text-[11px] text-purple-600 font-semibold">Remote</span>
-            </div>
-          </div>
-
-          {/* Applied & Saved status */}
-          <div className="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Applied / Saved</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="mt-1 flex items-baseline justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xl sm:text-2xl font-extrabold text-emerald-600">{appliedJobsCount}</span>
-                <span className="text-xs text-slate-400">applied</span>
-              </div>
-              <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
-                ★ {savedJobsCount}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* 2.2 ADVANCED FILTER CONTROLLER */}
-        <section className="rounded-2xl bg-white border border-slate-200/90 p-3.5 sm:p-4 shadow-sm space-y-3">
-          {/* Top Row: Date Picker & Search Input */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
-            {/* Quick Date Switcher (Restricted to Last 30 Days) */}
-            <div className="md:col-span-5 flex items-center gap-2">
-              <div className="flex items-center rounded-xl bg-slate-50 border border-slate-200 p-1 w-full sm:w-auto shadow-inner">
+              {/* Install PWA Button */}
+              {!isAppInstalled && (
                 <button
-                  onClick={() => shiftDate(-1)}
-                  disabled={selectedDate <= getMinDateString()}
-                  title="Previous Day (within last 30 days)"
-                  className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition disabled:opacity-30 disabled:hover:bg-transparent"
+                  onClick={handleTriggerInstall}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs transition"
+                  title="Install ZipZap on desktop or phone"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <Download className="w-3.5 h-3.5 text-[#1E60FF]" />
+                  <span>Install App</span>
+                </button>
+              )}
+
+              {/* Notification Bell with Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                  className="p-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 shadow-2xs transition relative"
+                  title="Notifications & Sync Info"
+                >
+                  <Bell className="w-4 h-4 text-slate-700" />
+                  <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 ring-2 ring-white" />
                 </button>
 
-                <div className="flex items-center gap-1.5 px-2">
-                  <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                {isNotificationOpen && (
+                  <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <span className="text-xs font-bold text-slate-900">Sync & Alerts</span>
+                      <button
+                        onClick={() => setIsNotificationOpen(false)}
+                        className="text-slate-400 hover:text-slate-600 p-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="py-2.5 space-y-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-100 space-y-1">
+                        <div className="flex items-center justify-between font-bold text-blue-900">
+                          <span>Latest Radar Scan</span>
+                          <span className="text-[10px] text-blue-600">Success</span>
+                        </div>
+                        <p className="text-slate-600 text-[11px]">
+                          Scraped {jobs.length} listings across Naukri, Indeed, LinkedIn, Glassdoor, and RemoteOK.
+                        </p>
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          Synced: {getLastSyncedISTDisplay()}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
+                        <div className="font-bold text-slate-800 text-[11px]">Upcoming Sync Slot</div>
+                        <p className="text-[11px] text-slate-500">{getNextSyncSlot()}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Profile Avatar if Logged in / Sign In Button if Logged out */}
+              {currentUser ? (
+                <button
+                  onClick={() => setIsUserProfileModalOpen(true)}
+                  className="flex items-center gap-1.5 p-1.5 pr-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-2xs transition"
+                  title={`Profile: ${currentUser.email}`}
+                >
+                  <div className="w-7 h-7 rounded-full bg-[#002262] text-white flex items-center justify-center text-xs font-bold">
+                    {userInitial}
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setUserAuthMode('login');
+                    setIsUserAuthModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-[#1E60FF] hover:bg-[#1B54E0] text-white text-xs font-bold shadow-xs transition"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ===================================================== */}
+          {/* WELCOME HERO BANNER                                    */}
+          {/* ===================================================== */}
+          <section className="relative rounded-3xl bg-gradient-to-r from-[#EBF3FE] via-[#EDF5FF] to-[#DBEAFE] p-4 sm:p-5 xl:p-6 border border-blue-100/90 shadow-[0_4px_20px_rgba(37,99,235,0.04)] overflow-hidden">
+            <div className="absolute right-0 top-0 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 flex items-center justify-between gap-4">
+              <div className="space-y-1 max-w-xl">
+                <h1 className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-snug">
+                  {currentUser ? `Welcome Back, ${userDisplayName}! 👋` : 'Welcome to ZipZap Jobs! 👋'}
+                </h1>
+                <p className="text-xs sm:text-sm font-semibold text-slate-600">
+                  {currentUser
+                    ? "Let's find your next opportunity with ZipZap Jobs"
+                    : 'Discover & track fresh daily jobs across 5 top portals in real time'}
+                </p>
+
+                {/* Sign In Prompt in Hero if logged out */}
+                {!currentUser && (
+                  <div className="pt-1.5">
+                    <button
+                      onClick={() => {
+                        setUserAuthMode('login');
+                        setIsUserAuthModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#1E60FF] hover:bg-[#1B54E0] text-white text-xs font-bold shadow-xs transition"
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>Sign In to Save Jobs & Sync Data →</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile Briefcase Graphic (matching the phone mockup) */}
+              <div className="md:hidden shrink-0">
+                <div className="w-12 h-11 rounded-2xl bg-gradient-to-tr from-[#0284C7] to-[#38BDF8] flex items-center justify-center shadow-md shadow-sky-500/20 text-white relative">
+                  <Briefcase className="w-5 h-5" />
+                  <span className="w-2 h-2 rounded-full bg-white/40 absolute top-2 right-2" />
+                </div>
+              </div>
+
+              {/* Desktop Illustration */}
+              <div className="hidden md:flex justify-end shrink-0">
+                <HeroIllustration className="w-56 sm:w-64 lg:w-72 h-24 sm:h-28 object-contain" />
+              </div>
+            </div>
+          </section>
+
+          {/* ===================================================== */}
+          {/* QUICK PLATFORM STATS CARDS (Compact Horizontal Layout) */}
+          {/* Icon & Name on LEFT, Count & Status on RIGHT          */}
+          {/* ===================================================== */}
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-2.5">
+            {/* 1. Total Active Jobs */}
+            <div
+              onClick={() => setSelectedSource('All')}
+              className={`rounded-2xl bg-white px-3.5 py-2.5 sm:px-4 sm:py-2.5 border transition cursor-pointer flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md ${
+                selectedSource === 'All' ? 'border-[#1E60FF] ring-2 ring-[#1E60FF]/20' : 'border-slate-200/80 hover:border-blue-300'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 text-[#1E60FF] flex items-center justify-center shrink-0">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-extrabold text-slate-800 truncate leading-tight">
+                    Total Jobs
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Active
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                  {statusFilter === 'saved' ? allSavedJobs.length : totalJobsCount}
+                </div>
+                <div className="flex items-center justify-end mt-1">
+                  <SparklineBars className="w-5 h-2.5 text-blue-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Naukri */}
+            <div
+              onClick={() => setSelectedSource('Naukri')}
+              className={`rounded-2xl bg-white px-3.5 py-2.5 sm:px-4 sm:py-2.5 border transition cursor-pointer flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md ${
+                selectedSource.toLowerCase() === 'naukri' ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-200/80 hover:border-indigo-300'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <PortalIcon source="Naukri" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-extrabold text-slate-800 truncate leading-tight">
+                    Naukri
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Portal
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                  {platformCounts.Naukri}
+                </div>
+                <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Indeed */}
+            <div
+              onClick={() => setSelectedSource('Indeed')}
+              className={`rounded-2xl bg-white px-3.5 py-2.5 sm:px-4 sm:py-2.5 border transition cursor-pointer flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md ${
+                selectedSource.toLowerCase() === 'indeed' ? 'border-orange-500 ring-2 ring-orange-500/20' : 'border-slate-200/80 hover:border-orange-300'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <PortalIcon source="Indeed" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-extrabold text-slate-800 truncate leading-tight">
+                    Indeed
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Portal
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                  {platformCounts.Indeed}
+                </div>
+                <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </div>
+              </div>
+            </div>
+
+            {/* 4. LinkedIn */}
+            <div
+              onClick={() => setSelectedSource('LinkedIn')}
+              className={`rounded-2xl bg-white px-3.5 py-2.5 sm:px-4 sm:py-2.5 border transition cursor-pointer flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md ${
+                selectedSource.toLowerCase() === 'linkedin' ? 'border-[#0A66C2] ring-2 ring-[#0A66C2]/20' : 'border-slate-200/80 hover:border-blue-400'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <PortalIcon source="LinkedIn" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-extrabold text-slate-800 truncate leading-tight">
+                    LinkedIn
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Portal
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                  {platformCounts.LinkedIn}
+                </div>
+                <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Glassdoor */}
+            <div
+              onClick={() => setSelectedSource('Glassdoor')}
+              className={`rounded-2xl bg-white px-3.5 py-2.5 sm:px-4 sm:py-2.5 border transition cursor-pointer flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md ${
+                selectedSource.toLowerCase() === 'glassdoor' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200/80 hover:border-emerald-300'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <PortalIcon source="Glassdoor" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-extrabold text-slate-800 truncate leading-tight">
+                    Glassdoor
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Portal
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                  {platformCounts.Glassdoor}
+                </div>
+                <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </div>
+              </div>
+            </div>
+
+            {/* 6. RemoteOK */}
+            <div
+              onClick={() => setSelectedSource('RemoteOK')}
+              className={`rounded-2xl bg-white px-3.5 py-2.5 sm:px-4 sm:py-2.5 border transition cursor-pointer flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md ${
+                selectedSource.toLowerCase() === 'remoteok' ? 'border-purple-500 ring-2 ring-purple-500/20' : 'border-slate-200/80 hover:border-purple-300'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <PortalIcon source="RemoteOK" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-extrabold text-slate-800 truncate leading-tight">
+                    RemoteOK
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Global
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                  {platformCounts.RemoteOK}
+                </div>
+                <div className="text-[10px] font-bold text-purple-600 mt-1">
+                  Remote
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ===================================================== */}
+          {/* DESKTOP FILTER BAR: ULTRA COMPACT & CLEAN (lg: screens) */}
+          {/* ===================================================== */}
+          <section className="hidden lg:block rounded-2xl bg-white p-3 border border-slate-200/80 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-2.5">
+            {/* Top Row: Dropdown Selectors + Status Tabs + Reset */}
+            <div className="flex items-center justify-between gap-3">
+              {/* Left Selectors */}
+              <div className="flex items-center gap-2">
+                {/* Date Switcher Pill */}
+                <div className="relative flex items-center bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 transition">
+                  <button
+                    onClick={() => shiftDate(-1)}
+                    disabled={selectedDate <= getMinDateString()}
+                    className="p-0.5 hover:text-blue-600 disabled:opacity-30 mr-1"
+                    title="Previous Day"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div
+                    onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
+                    className="flex items-center gap-1.5 cursor-pointer select-none"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>{formatDisplayDate(selectedDate)}</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </div>
+
+                  <button
+                    onClick={() => shiftDate(1)}
+                    disabled={selectedDate >= getTodayString()}
+                    className="p-0.5 hover:text-blue-600 disabled:opacity-30 ml-1"
+                    title="Next Day"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+
                   <input
+                    ref={dateInputRef}
                     type="date"
                     min={getMinDateString()}
                     max={getTodayString()}
@@ -820,114 +1342,159 @@ export default function App() {
                         setSelectedDate(val);
                       }
                     }}
-                    className="bg-transparent border-none text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-0 cursor-pointer"
+                    className="absolute inset-0 opacity-0 pointer-events-none w-0 h-0"
                   />
                 </div>
 
-                <button
-                  onClick={() => shiftDate(1)}
-                  disabled={selectedDate >= getTodayString()}
-                  title="Next Day"
-                  className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition disabled:opacity-30 disabled:hover:bg-transparent"
+                {/* 30-Day Window Pill */}
+                {/* <div
+                  onClick={() => setDateToToday()}
+                  className="flex items-center gap-1 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-600 cursor-pointer transition select-none"
+                  title="Click to jump to Today"
                 >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                  <span>30-Day Window</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </div> */}
+
+                {/* Job Role Dropdown Pill */}
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800">
+                  <Briefcase className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => setSelectedRole(e.target.value)}
+                    className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
+                  >
+                    <option value="All">All Job Roles ({availableRoles.length})</option>
+                    {availableRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Location Dropdown Pill */}
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <select
+                    value={selectedLocation}
+                    onChange={(e) => setSelectedLocation(e.target.value)}
+                    className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
+                  >
+                    <option value="All">All Locations ({availableLocations.length})</option>
+                    {availableLocations.map((loc) => (
+                      <option key={loc} value={loc}>
+                        {loc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {selectedDate !== getTodayString() && (
-                <button
-                  onClick={setDateToToday}
-                  className="text-xs px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 transition"
-                >
-                  Today
-                </button>
-              )}
-
-              <span className="text-[10px] text-slate-400 font-semibold bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 hidden lg:inline">
-                30-Day Window
-              </span>
-            </div>
-
-            {/* Keyword Search */}
-            <div className="md:col-span-7 relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search by job title, company, or keywords (e.g. React, Zoho, PHP, Madurai)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Bottom Row: Role Dropdown, Location Dropdown, Source App Pills & Status */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
-            {/* Left Dropdowns: Roles & Locations */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Job Role Dropdown */}
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
-                <Briefcase className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="bg-transparent border-none text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
-                >
-                  <option value="All">All Job Roles ({availableRoles.length})</option>
-                  {availableRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* LOCATION DROPDOWN (Tamil Nadu & India) */}
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
-                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <select
-                  value={selectedLocation}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="bg-transparent border-none text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
-                >
-                  <option value="All">All Locations ({availableLocations.length})</option>
-                  {availableLocations.map((loc) => (
-                    <option key={loc} value={loc}>
-                      {loc}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Center: Source App Filter Pills with Real Icons */}
-            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto py-0.5">
-              {['All', 'Naukri', 'Indeed', 'LinkedIn', 'Glassdoor', 'RemoteOK'].map((src) => {
-                const isSelected = selectedSource.toLowerCase() === src.toLowerCase();
-                const count = src === 'All' ? jobs.length : platformCounts[src] || 0;
-                return (
+              {/* Right: Status Filter Tabs + Reset */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-xl bg-slate-100 p-0.5 text-xs">
                   <button
-                    key={src}
-                    onClick={() => setSelectedSource(src)}
-                    className={`text-xs px-2.5 py-1 rounded-xl border transition flex items-center gap-1.5 shrink-0 ${
-                      isSelected
-                        ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-sm shadow-blue-500/20'
-                        : `bg-slate-50 text-slate-700 border-slate-200 ${SOURCE_PILL_STYLES[src] || ''}`
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-3 py-1 rounded-lg font-bold transition ${
+                      statusFilter === 'all'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    {src !== 'All' && <PortalIcon source={src} className="w-3.5 h-3.5" />}
-                    <span>{src}</span>
+                    All ({totalJobsCount})
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (!currentUser) {
+                        setUserAuthMode('login');
+                        setIsUserAuthModalOpen(true);
+                      } else {
+                        setStatusFilter('saved');
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                      statusFilter === 'saved'
+                        ? 'bg-white text-purple-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Bookmark className="w-3 h-3 text-purple-600" />
+                    <span>Saved ({userSavedCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (!currentUser) {
+                        setUserAuthMode('login');
+                        setIsUserAuthModalOpen(true);
+                      } else {
+                        setStatusFilter('unread');
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                      statusFilter === 'unread'
+                        ? 'bg-white text-blue-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Eye className="w-3 h-3 text-blue-500" />
+                    <span>Unread ({userUnreadCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (!currentUser) {
+                        setUserAuthMode('login');
+                        setIsUserAuthModalOpen(true);
+                      } else {
+                        setStatusFilter('read');
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                      statusFilter === 'read'
+                        ? 'bg-white text-emerald-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    <span>Read ({userReadCount})</span>
+                  </button>
+                </div>
+
+                {isAnyFilterActive && (
+                  <button
+                    onClick={resetAllFilters}
+                    title="Reset all active filters"
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Row: All 5 Portal Chips with crisp badges & counts */}
+            <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
+              {['All', 'Naukri', 'Indeed', 'LinkedIn', 'Glassdoor', 'RemoteOK'].map((portal) => {
+                const isSelected = selectedSource.toLowerCase() === portal.toLowerCase();
+                const count = portal === 'All' ? (statusFilter === 'saved' ? allSavedJobs.length : totalJobsCount) : platformCounts[portal] || 0;
+                return (
+                  <button
+                    key={portal}
+                    onClick={() => setSelectedSource(portal)}
+                    className={`text-xs px-2.5 py-1 rounded-xl font-bold transition flex items-center gap-1.5 shrink-0 ${
+                      isSelected
+                        ? 'bg-[#1E60FF] text-white shadow-2xs shadow-blue-500/20'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80'
+                    }`}
+                  >
+                    {portal !== 'All' && <PortalIcon source={portal} className="w-3.5 h-3.5 rounded-sm" />}
+                    <span>{portal}</span>
                     <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                       }`}
                     >
                       {count}
@@ -936,255 +1503,655 @@ export default function App() {
                 );
               })}
             </div>
+          </section>
 
-            {/* Right: User-Specific Status Filter Tabs & Reset */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-xl bg-slate-100 p-0.5 text-xs overflow-x-auto">
-                {/* All Jobs */}
+          {/* ===================================================== */}
+          {/* MOBILE FILTER BAR: MODERN, COMPACT, ULTRA CLEAN       */}
+          {/* ===================================================== */}
+          <section className="lg:hidden rounded-2xl bg-white p-2.5 border border-slate-200/80 shadow-2xs space-y-2">
+            {/* Top Quick Action Row */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-1 overflow-x-auto no-scrollbar">
+                {/* 1. Mobile Filter Button that opens Bottom Sheet */}
                 <button
-                  onClick={() => setStatusFilter('all')}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition ${
-                    statusFilter === 'all'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  onClick={() => setIsMobileFilterDrawerOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#1E60FF] text-xs font-black shrink-0 transition"
                 >
-                  All ({totalJobsCount})
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Filters</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-[#1E60FF] text-white text-[10px] flex items-center justify-center font-black">
+                      {activeFiltersCount}
+                    </span>
+                  )}
                 </button>
 
-                {/* User Saved */}
-                <button
-                  onClick={() => {
-                    if (!currentUser) {
-                      setUserAuthMode('login');
-                      setIsUserAuthModalOpen(true);
-                    } else {
-                      setStatusFilter('saved');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 ${
-                    statusFilter === 'saved'
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title={currentUser ? 'View your saved jobs' : 'Sign in to view saved jobs'}
+                {/* 2. Date Quick Switcher Pill */}
+                <div
+                  onClick={() => mobileDateInputRef.current?.showPicker?.() || mobileDateInputRef.current?.focus()}
+                  className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 shrink-0 cursor-pointer"
                 >
-                  <Bookmark className={`w-3 h-3 ${statusFilter === 'saved' ? 'text-purple-600 fill-purple-600' : 'text-slate-400'}`} />
-                  <span>Saved ({userSavedCount})</span>
-                </button>
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{formatDisplayDate(selectedDate)}</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                  <input
+                    ref={mobileDateInputRef}
+                    type="date"
+                    min={getMinDateString()}
+                    max={getTodayString()}
+                    value={selectedDate}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val <= getTodayString() && val >= getMinDateString()) {
+                        setSelectedDate(val);
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 pointer-events-none w-0 h-0"
+                  />
+                </div>
 
-                {/* Unread */}
-                <button
-                  onClick={() => {
-                    if (!currentUser) {
-                      setUserAuthMode('login');
-                      setIsUserAuthModalOpen(true);
-                    } else {
-                      setStatusFilter('unread');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 ${
-                    statusFilter === 'unread'
-                      ? 'bg-white text-blue-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title={currentUser ? 'View unread jobs' : 'Sign in to view unread jobs'}
-                >
-                  <Eye className="w-3 h-3 text-blue-500" />
-                  <span>Unread ({userUnreadCount})</span>
-                </button>
-
-                {/* Marked as Read */}
-                <button
-                  onClick={() => {
-                    if (!currentUser) {
-                      setUserAuthMode('login');
-                      setIsUserAuthModalOpen(true);
-                    } else {
-                      setStatusFilter('read');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 ${
-                    statusFilter === 'read'
-                      ? 'bg-white text-emerald-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title={currentUser ? 'View jobs you marked as read' : 'Sign in to view read jobs'}
-                >
-                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                  <span>Read ({userReadCount})</span>
-                </button>
+                {/* 3. Jump to Today button if on previous day */}
+                {selectedDate !== getTodayString() && (
+                  <button
+                    onClick={setDateToToday}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-xs font-bold text-blue-600 shrink-0"
+                  >
+                    Today
+                  </button>
+                )}
               </div>
 
+              {/* Reset active filters button */}
               {isAnyFilterActive && (
                 <button
                   onClick={resetAllFilters}
-                  title="Clear all active filters"
-                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
+                  title="Clear all filters"
+                  className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition shrink-0"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
-          </div>
-        </section>
 
-        {/* 2.3 JOB CARDS GRID (Full-Width High Density) */}
-        {isLoading ? (
-          <div className="py-24 text-center space-y-3">
-            <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
-            <p className="text-xs font-semibold text-slate-500">Loading listings for {selectedDate}...</p>
-          </div>
-        ) : filteredJobs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-16 px-4 text-center space-y-3 shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto text-slate-400">
-              <Search className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-slate-800">No jobs found matching your filters</h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              No matching listings for date <span className="font-mono text-blue-600 font-bold">{selectedDate}</span> with your selected role, location, or source criteria.
-            </p>
-            <div className="pt-2 flex justify-center gap-2">
+            {/* Bottom Row: Smooth Horizontal Scrolling Chips (Portals + Reading Status) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {/* All Portals */}
+              {['All', 'Naukri', 'Indeed', 'LinkedIn', 'Glassdoor', 'RemoteOK'].map((portal) => {
+                const isSelected = selectedSource.toLowerCase() === portal.toLowerCase();
+                const count = portal === 'All' ? (statusFilter === 'saved' ? allSavedJobs.length : totalJobsCount) : platformCounts[portal] || 0;
+                return (
+                  <button
+                    key={portal}
+                    onClick={() => setSelectedSource(portal)}
+                    className={`text-xs px-2.5 py-1 rounded-xl font-bold transition flex items-center gap-1.5 shrink-0 ${
+                      isSelected
+                        ? 'bg-[#1E60FF] text-white shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border border-slate-200/80'
+                    }`}
+                  >
+                    {portal !== 'All' && <PortalIcon source={portal} className="w-3 h-3 rounded-sm" />}
+                    <span>{portal}</span>
+                    <span
+                      className={`text-[10px] px-1 py-0.1 rounded-full font-bold ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+
+              <span className="text-slate-300 mx-0.5">|</span>
+
+              {/* Saved Chip */}
               <button
-                onClick={resetAllFilters}
-                className="text-xs px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition shadow-sm"
+                onClick={() => {
+                  if (!currentUser) {
+                    setUserAuthMode('login');
+                    setIsUserAuthModalOpen(true);
+                  } else {
+                    setStatusFilter(statusFilter === 'saved' ? 'all' : 'saved');
+                  }
+                }}
+                className={`text-xs px-2.5 py-1 rounded-xl font-bold transition flex items-center gap-1 shrink-0 ${
+                  statusFilter === 'saved'
+                    ? 'bg-purple-600 text-white shadow-2xs'
+                    : 'bg-slate-50 text-slate-700 border border-slate-200/80'
+                }`}
               >
-                Reset All Filters
+                <Bookmark className="w-3 h-3" />
+                <span>Saved ({userSavedCount})</span>
+              </button>
+
+              {/* Unread Chip */}
+              <button
+                onClick={() => {
+                  if (!currentUser) {
+                    setUserAuthMode('login');
+                    setIsUserAuthModalOpen(true);
+                  } else {
+                    setStatusFilter(statusFilter === 'unread' ? 'all' : 'unread');
+                  }
+                }}
+                className={`text-xs px-2.5 py-1 rounded-xl font-bold transition flex items-center gap-1 shrink-0 ${
+                  statusFilter === 'unread'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-slate-50 text-slate-700 border border-slate-200/80'
+                }`}
+              >
+                <Eye className="w-3 h-3" />
+                <span>Unread ({userUnreadCount})</span>
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-            {filteredJobs.map((job) => {
-              const isJobSaved = currentUser ? (currentUser.saved_job_ids || []).includes(job.id) : false;
-              const isJobRead = currentUser ? (currentUser.read_job_ids || []).includes(job.id) : false;
+          </section>
 
-              return (
-                <div
-                  key={job.id}
-                  onClick={() => setSelectedJob(job)}
-                  className={`job-card group cursor-pointer relative rounded-2xl bg-white border p-4 flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.07)] transition ${
-                    isJobRead
-                      ? 'border-slate-200/60 bg-slate-50/60 opacity-90'
-                      : isJobSaved
-                      ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10'
-                      : 'border-slate-200/90 hover:border-blue-400'
-                  }`}
-                >
-                  {/* Card Header: Real Brand Icon + Source Label & Quick Actions */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2.5">
-                      {/* Brand Logo & Name */}
-                      <div className="flex items-center gap-1.5">
-                        <PortalIcon source={job.source_app} className="w-4 h-4 shrink-0" />
-                        <span className="text-xs font-bold text-slate-700">{job.source_app || 'Portal'}</span>
-                      </div>
+          {/* ===================================================== */}
+          {/* TAB: INSIGHTS & ANALYTICS OVERVIEW                    */}
+          {/* ===================================================== */}
+          {activeNav === 'insights' ? (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="rounded-3xl bg-white p-6 border border-slate-200/80 shadow-2xs space-y-6">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Job Market Insights & Portal Analytics</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Live distribution and coverage breakdown for {formatDisplayDate(selectedDate)}
+                  </p>
+                </div>
 
-                      {/* Card Action Icons */}
-                      <div className="flex items-center gap-1">
-                        {/* Bookmark / Saved Button */}
-                        <button
-                          onClick={(e) => handleToggleSaved(e, job)}
-                          title={
-                            isJobSaved
-                              ? 'Saved to your profile (Click to remove)'
-                              : currentUser
-                              ? 'Save to your profile'
-                              : 'Sign in to save this job'
-                          }
-                          className={`p-1.5 rounded-lg border transition ${
-                            isJobSaved
-                              ? 'bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100 shadow-2xs'
-                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-purple-600 hover:bg-purple-50/50'
-                          }`}
-                        >
-                          <Bookmark
-                            className={`w-3.5 h-3.5 ${
-                              isJobSaved ? 'text-purple-600 fill-purple-600' : ''
-                            }`}
-                          />
-                        </button>
-
-                        {/* Mark as Read Button */}
-                        <button
-                          onClick={(e) => handleToggleRead(e, job)}
-                          title={
-                            isJobRead
-                              ? 'Marked as read (Click to mark unread)'
-                              : currentUser
-                              ? 'Mark as Read'
-                              : 'Sign in to mark job as read'
-                          }
-                          className={`p-1.5 rounded-lg border text-xs font-medium transition ${
-                            isJobRead
-                              ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100 shadow-2xs'
-                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-emerald-600 hover:bg-emerald-50/50'
-                          }`}
-                        >
-                          <CheckCircle2
-                            className={`w-3.5 h-3.5 ${isJobRead ? 'text-emerald-600 fill-emerald-100' : ''}`}
-                          />
-                        </button>
-                      </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Portal Share */}
+                  <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Platform Share
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.entries(platformCounts).map(([portal, count]) => {
+                        const pct = totalJobsCount > 0 ? Math.round((count / totalJobsCount) * 100) : 0;
+                        return (
+                          <div key={portal} className="space-y-1">
+                            <div className="flex justify-between text-xs font-semibold text-slate-700">
+                              <span>{portal}</span>
+                              <span>{count} ({pct}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                              <div
+                                className="bg-[#1E60FF] h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-
-                    {/* Job Title */}
-                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-2 leading-snug">
-                      {job.title}
-                    </h3>
-
-                    {/* Company */}
-                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-700 font-semibold">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{job.company}</span>
-                    </div>
-
-                    {/* Location Badge */}
-                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span className="truncate">{job.location || 'Remote'}</span>
-                    </div>
-
-                    {/* Description preview */}
-                    {job.description && (
-                      <p className="mt-2.5 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                        {job.description}
-                      </p>
-                    )}
                   </div>
 
-                  {/* Card Footer: Category Tag & Status */}
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                    {/* Category Tag */}
-                    <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60 truncate max-w-[130px]">
-                      {job.search_category || 'General'}
-                    </span>
+                  {/* Sync Cadence */}
+                  <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Automated Sync Schedule (IST)
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      ZipZap triggers automated cloud scrape jobs 4 times daily across all 5 major portals:
+                    </p>
+                    <div className="space-y-1.5 text-xs font-semibold text-slate-700">
+                      <div className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>09:00 AM IST (Morning Scan)</span>
+                      </div>
+                      <div className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>01:00 PM IST (Midday Scan)</span>
+                      </div>
+                      <div className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>05:00 PM IST (Evening Scan)</span>
+                      </div>
+                      <div className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>09:00 PM IST (Night Scan)</span>
+                      </div>
+                    </div>
+                  </div>
 
-                    <div className="flex items-center gap-1.5">
-                      {isJobRead && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                          Read ✓
+                  {/* Roles Covered */}
+                  <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Target Job Roles ({availableRoles.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+                      {availableRoles.map((role) => (
+                        <span
+                          key={role}
+                          onClick={() => {
+                            setSelectedRole(role);
+                            setActiveNav('dashboard');
+                          }}
+                          className="text-[11px] font-semibold bg-white border border-slate-200/80 px-2.5 py-1 rounded-lg text-slate-700 hover:border-blue-500 cursor-pointer transition"
+                        >
+                          {role}
                         </span>
-                      )}
-                      {isJobSaved && (
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                          Saved ★
-                        </span>
-                      )}
-                      <span className="text-[11px] text-blue-600 font-semibold flex items-center gap-0.5 group-hover:underline">
-                        Apply
-                        <ArrowUpRight className="w-3 h-3" />
-                      </span>
+                      ))}
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
+              </div>
+            </div>
+          ) : null}
 
-      {/* 3. JOB DETAIL & APPLY MODAL */}
+          {/* ===================================================== */}
+          {/* MAIN JOBS GRID OR EMPTY STATE                         */}
+          {/* ===================================================== */}
+          {activeNav !== 'insights' && (
+            <div>
+              {isLoading ? (
+                <div className="py-24 text-center space-y-3 bg-white rounded-3xl border border-slate-200/80 shadow-2xs">
+                  <RefreshCw className="w-8 h-8 text-[#1E60FF] animate-spin mx-auto" />
+                  <p className="text-xs font-bold text-slate-500">
+                    Scanning listings for {formatDisplayDate(selectedDate)}...
+                  </p>
+                </div>
+              ) : filteredJobs.length === 0 ? (
+                /* Empty state matching screenshot */
+                <div className="rounded-3xl bg-white p-8 sm:p-14 border border-slate-200/80 text-center shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
+                  <div className="flex justify-center">
+                    <EmptySearchIllustration className="w-44 sm:w-52 h-36 sm:h-40 object-contain" />
+                  </div>
+
+                  <div className="space-y-1.5 max-w-md mx-auto">
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                      No Jobs Found Yet!
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed">
+                      {statusFilter === 'saved'
+                        ? "You haven't saved any jobs yet. Browse listings and click the bookmark icon to save jobs here!"
+                        : 'Try adjusting your filters or check back later for new opportunities.'}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      onClick={resetAllFilters}
+                      className="px-6 py-2.5 rounded-full bg-[#1E60FF] hover:bg-[#1B54E0] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/25 transition-all flex items-center gap-2 transform active:scale-95"
+                    >
+                      <span>Explore All Jobs</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Jobs Card Grid */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3 sm:gap-3.5">
+                  {filteredJobs.map((job) => {
+                    const isJobSaved = currentUser
+                      ? (currentUser.saved_job_ids || []).includes(job.id)
+                      : false;
+                    const isJobRead = currentUser
+                      ? (currentUser.read_job_ids || []).includes(job.id)
+                      : false;
+
+                    return (
+                      <div
+                        key={job.id}
+                        onClick={() => setSelectedJob(job)}
+                        className={`job-card group cursor-pointer relative rounded-2xl sm:rounded-3xl bg-white border p-4 sm:p-4.5 flex flex-col justify-between shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-lg transition ${
+                          isJobRead
+                            ? 'border-slate-200/60 bg-slate-50/50 opacity-90'
+                            : isJobSaved
+                            ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10'
+                            : 'border-slate-200/90 hover:border-[#1E60FF]'
+                        }`}
+                      >
+                        <div>
+                          {/* Card Header: Platform Icon + Actions */}
+                          <div className="flex items-center justify-between gap-2 mb-2.5">
+                            <div className="flex items-center gap-2">
+                              <PortalIcon source={job.source_app} className="w-5 h-5 rounded-md shrink-0" />
+                              <span className="text-xs font-bold text-slate-700">{job.source_app || 'Portal'}</span>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {/* Save Bookmark */}
+                              <button
+                                onClick={(e) => handleToggleSaved(e, job)}
+                                title={
+                                  isJobSaved
+                                    ? 'Saved to your profile'
+                                    : currentUser
+                                    ? 'Save job'
+                                    : 'Sign in to save'
+                                }
+                                className={`p-1.5 rounded-xl border transition ${
+                                  isJobSaved
+                                    ? 'bg-purple-50 text-purple-600 border-purple-200 shadow-2xs'
+                                    : 'bg-slate-50 text-slate-400 border-slate-200/80 hover:text-purple-600 hover:bg-purple-50/50'
+                                }`}
+                              >
+                                <Bookmark className={`w-3.5 h-3.5 ${isJobSaved ? 'fill-purple-600' : ''}`} />
+                              </button>
+
+                              {/* Mark as Read */}
+                              <button
+                                onClick={(e) => handleToggleRead(e, job)}
+                                title={isJobRead ? 'Marked as read' : 'Mark as read'}
+                                className={`p-1.5 rounded-xl border transition ${
+                                  isJobRead
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 shadow-2xs'
+                                    : 'bg-slate-50 text-slate-400 border-slate-200/80 hover:text-emerald-600 hover:bg-emerald-50/50'
+                                }`}
+                              >
+                                <CheckCircle2 className={`w-3.5 h-3.5 ${isJobRead ? 'fill-emerald-100' : ''}`} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Job Title */}
+                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 group-hover:text-[#1E60FF] transition-colors line-clamp-2 leading-snug">
+                            {job.title}
+                          </h3>
+
+                          {/* Company */}
+                          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-700 font-bold">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{job.company}</span>
+                          </div>
+
+                          {/* Location & Posted Date */}
+                          <div className="mt-1 flex items-center justify-between gap-1 text-[11px] text-slate-500 font-medium">
+                            <div className="flex items-center gap-1 truncate">
+                              <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span className="truncate">{job.location || 'Remote'}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400 shrink-0">
+                              <Clock className="w-3 h-3 shrink-0" />
+                              <span>{formatDisplayDate(job.scraped_date || job.date_posted)}</span>
+                            </div>
+                          </div>
+
+                          {/* Description Excerpt */}
+                          {job.description && (
+                            <p className="mt-2 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                              {job.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Card Footer: Category Tag & Apply CTA */}
+                        <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/60 truncate max-w-[130px]">
+                            {job.search_category || 'General'}
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            {isJobRead && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                Read ✓
+                              </span>
+                            )}
+                            {isJobSaved && (
+                              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                Saved ★
+                              </span>
+                            )}
+                            <span className="text-xs font-bold text-[#1E60FF] flex items-center gap-0.5 group-hover:underline">
+                              Apply
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* ========================================================= */}
+      {/* 3. MOBILE FIXED BOTTOM NAVIGATION BAR                      */}
+      {/* ========================================================= */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] px-3 py-2 pb-safe">
+        <div className="flex items-center justify-around">
+          <button
+            onClick={() => handleNavClick('dashboard')}
+            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
+              activeNav === 'dashboard' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="text-[10px]">Dashboard</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('discover')}
+            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
+              activeNav === 'discover' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            }`}
+          >
+            <Compass className="w-5 h-5" />
+            <span className="text-[10px]">Discover</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('saved')}
+            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl relative transition ${
+              activeNav === 'saved' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            }`}
+          >
+            <Bookmark className="w-5 h-5" />
+            <span className="text-[10px]">Saved</span>
+            {userSavedCount > 0 && (
+              <span className="absolute top-0 right-2 w-2 h-2 rounded-full bg-purple-600" />
+            )}
+          </button>
+
+          <button
+            onClick={() => handleNavClick('applications')}
+            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl relative transition ${
+              activeNav === 'applications' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            }`}
+          >
+            <Send className="w-5 h-5" />
+            <span className="text-[10px]">Applications</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('insights')}
+            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
+              activeNav === 'insights' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            }`}
+          >
+            <BarChart2 className="w-5 h-5" />
+            <span className="text-[10px]">Insights</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* ========================================================= */}
+      {/* 4. MODERN MOBILE FILTER BOTTOM SHEET MODAL                */}
+      {/* ========================================================= */}
+      {isMobileFilterDrawerOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setIsMobileFilterDrawerOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-h-[85vh] bg-white rounded-t-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-250 text-slate-800"
+          >
+            {/* Drawer Drag Pill & Header */}
+            <div className="pt-3 pb-3 px-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-[#1E60FF]" />
+                <h3 className="text-base font-black text-slate-900">Filter Jobs</h3>
+                {activeFiltersCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#1E60FF] text-xs font-bold">
+                    {activeFiltersCount} Active
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isAnyFilterActive && (
+                  <button
+                    onClick={resetAllFilters}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700 p-1"
+                  >
+                    Reset All
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsMobileFilterDrawerOpen(false)}
+                  className="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Filter Options */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
+              {/* 1. Date Selector */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Scraped Date
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={setDateToToday}
+                    className={`flex-1 py-2 px-3 rounded-xl font-bold border text-xs transition ${
+                      selectedDate === getTodayString()
+                        ? 'bg-[#1E60FF] text-white border-[#1E60FF]'
+                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    Today ({formatDisplayDate(getTodayString())})
+                  </button>
+                  <button
+                    onClick={() => shiftDate(-1)}
+                    className="py-2 px-3 rounded-xl font-bold border border-slate-200 bg-slate-50 text-slate-700"
+                  >
+                    Yesterday
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Job Role */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Target Job Role
+                </label>
+                <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+                  <button
+                    onClick={() => setSelectedRole('All')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition ${
+                      selectedRole === 'All'
+                        ? 'bg-[#1E60FF] text-white border-[#1E60FF]'
+                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    All Roles
+                  </button>
+                  {availableRoles.map((role) => (
+                    <button
+                      key={role}
+                      onClick={() => setSelectedRole(role)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition ${
+                        selectedRole === role
+                          ? 'bg-[#1E60FF] text-white border-[#1E60FF]'
+                          : 'bg-slate-50 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {role}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Location */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Location
+                </label>
+                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                  <button
+                    onClick={() => setSelectedLocation('All')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition ${
+                      selectedLocation === 'All'
+                        ? 'bg-[#1E60FF] text-white border-[#1E60FF]'
+                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    All Locations
+                  </button>
+                  {availableLocations.map((loc) => (
+                    <button
+                      key={loc}
+                      onClick={() => setSelectedLocation(loc)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition ${
+                        selectedLocation === loc
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-slate-50 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {loc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. Portal Source */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Hiring Platform
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['All', 'Naukri', 'Indeed', 'LinkedIn', 'Glassdoor', 'RemoteOK'].map((portal) => (
+                    <button
+                      key={portal}
+                      onClick={() => setSelectedSource(portal)}
+                      className={`p-2 rounded-xl border flex items-center justify-between text-xs font-bold transition ${
+                        selectedSource.toLowerCase() === portal.toLowerCase()
+                          ? 'bg-blue-50 border-[#1E60FF] text-[#1E60FF] ring-1 ring-[#1E60FF]'
+                          : 'bg-slate-50 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {portal !== 'All' && <PortalIcon source={portal} className="w-4 h-4 rounded-sm" />}
+                        <span>{portal}</span>
+                      </div>
+                      <span className="text-[11px] opacity-75">
+                        {portal === 'All' ? (statusFilter === 'saved' ? allSavedJobs.length : totalJobsCount) : platformCounts[portal] || 0}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Apply Action Button */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 pb-safe">
+              <button
+                onClick={() => setIsMobileFilterDrawerOpen(false)}
+                className="w-full py-3 rounded-2xl bg-[#1E60FF] hover:bg-[#1B54E0] text-white font-black text-sm shadow-md shadow-blue-500/25 transition flex items-center justify-center gap-2"
+              >
+                <span>Show {filteredJobs.length} Jobs</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5. MODALS                                                 */}
+      {/* ========================================================= */}
+
+      {/* Job Detail & Direct Apply Modal */}
       {selectedJob && (
         <div
           role="dialog"
@@ -1200,11 +2167,10 @@ export default function App() {
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Real Brand Logo */}
                   <PortalIcon source={selectedJob.source_app} showLabel={true} />
 
-                  <span className="text-xs bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg border border-slate-200 font-medium">
-                    Category: {selectedJob.search_category}
+                  <span className="text-xs bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg border border-slate-200 font-bold">
+                    {selectedJob.search_category}
                   </span>
 
                   {selectedJob.is_applied && (
@@ -1214,13 +2180,13 @@ export default function App() {
                   )}
                 </div>
 
-                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-snug">
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
                   {selectedJob.title}
                 </h2>
 
                 <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-slate-600">
                   <div className="flex items-center gap-1 font-bold text-slate-900">
-                    <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                    <Building2 className="w-4 h-4 text-[#1E60FF] shrink-0" />
                     <span>{selectedJob.company}</span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -1229,32 +2195,31 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-1 text-slate-400">
                     <Clock className="w-3.5 h-3.5 shrink-0" />
-                    <span>Listed: {selectedJob.scraped_date}</span>
+                    <span>Listed: {formatDisplayDate(selectedJob.scraped_date || selectedJob.date_posted)}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Close Button */}
               <button
                 onClick={() => setSelectedJob(null)}
-                className="p-2 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                className="p-2 rounded-2xl bg-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Direct Link Verification Container */}
+            {/* Direct Application Link */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Direct Application URL (Verify Link)
+                Direct Application URL (Employer Site)
               </label>
-              <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 p-2">
+              <div className="flex items-center gap-2 rounded-2xl bg-slate-50 border border-slate-200 p-2.5">
                 <span className="text-xs text-slate-700 font-mono break-all line-clamp-2 select-all flex-1">
                   {selectedJob.apply_link}
                 </span>
                 <button
                   onClick={() => handleCopyLink(selectedJob.apply_link)}
-                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 border border-slate-200 flex items-center gap-1.5 transition shrink-0 shadow-sm"
+                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 flex items-center gap-1.5 transition shrink-0 shadow-2xs"
                 >
                   {copySuccess ? (
                     <>
@@ -1271,7 +2236,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Job Description */}
+            {/* Overview / Details */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Job Overview & Details Snippet
@@ -1282,16 +2247,14 @@ export default function App() {
               </div>
             </div>
 
-            {/* Footer Actions */}
+            {/* Modal Actions */}
             <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-              {/* Status Action Buttons */}
               <div className="flex items-center gap-2">
-                {/* Save Job */}
                 <button
                   onClick={(e) => handleToggleSaved(e, selectedJob)}
-                  className={`text-xs px-3 py-2 rounded-xl border font-semibold flex items-center gap-1.5 transition ${
+                  className={`text-xs px-3.5 py-2 rounded-xl border font-bold flex items-center gap-1.5 transition ${
                     currentUser && (currentUser.saved_job_ids || []).includes(selectedJob.id)
-                      ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-xs'
+                      ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-2xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -1304,17 +2267,16 @@ export default function App() {
                   />
                   <span>
                     {currentUser && (currentUser.saved_job_ids || []).includes(selectedJob.id)
-                      ? 'Saved to Profile ★'
+                      ? 'Saved ★'
                       : 'Save Job'}
                   </span>
                 </button>
 
-                {/* Mark as Read */}
                 <button
                   onClick={(e) => handleToggleRead(e, selectedJob)}
-                  className={`text-xs px-3 py-2 rounded-xl border font-semibold flex items-center gap-1.5 transition ${
+                  className={`text-xs px-3.5 py-2 rounded-xl border font-bold flex items-center gap-1.5 transition ${
                     currentUser && (currentUser.read_job_ids || []).includes(selectedJob.id)
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -1333,12 +2295,11 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Prominent Apply on Platform Button */}
               <a
                 href={selectedJob.apply_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 transition transform active:scale-95"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-[#1E60FF] hover:bg-[#1B54E0] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-500/25 transition transform active:scale-95"
               >
                 <span>🚀 Apply on {selectedJob.source_app || 'Employer Site'}</span>
                 <ExternalLink className="w-4 h-4" />
@@ -1348,7 +2309,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 4. SECRET ADMIN PASSWORD AUTH MODAL */}
+      {/* Secret Admin Auth Modal */}
       <AdminAuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -1358,7 +2319,7 @@ export default function App() {
         }}
       />
 
-      {/* 5. ADMIN CONFIGURATION MODAL */}
+      {/* Admin Config Modal */}
       <AdminConfigModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
@@ -1368,7 +2329,7 @@ export default function App() {
         }}
       />
 
-      {/* 6. USER AUTH MODAL (Login / Signup with OTP / Forgot Password with OTP) */}
+      {/* User Auth Modal */}
       <UserAuthModal
         isOpen={isUserAuthModalOpen}
         initialMode={userAuthMode}
@@ -1379,19 +2340,32 @@ export default function App() {
         }}
       />
 
-      {/* 7. USER PROFILE MODAL */}
+      {/* User Profile Modal */}
       <UserProfileModal
         isOpen={isUserProfileModalOpen}
         user={currentUser}
         onClose={() => setIsUserProfileModalOpen(false)}
         onLogout={handleLogout}
-        onFilterSaved={() => setStatusFilter('saved')}
-        onFilterRead={() => setStatusFilter('read')}
+        onFilterSaved={() => {
+          setActiveNav('saved');
+          setStatusFilter('saved');
+        }}
+        onFilterRead={() => {
+          setActiveNav('dashboard');
+          setStatusFilter('read');
+        }}
+        onNameUpdated={(newName) => {
+          setCurrentUser((prev) => ({
+            ...prev,
+            name: newName,
+            displayName: newName
+          }));
+        }}
         onOpenInstall={handleTriggerInstall}
         isAppInstalled={isAppInstalled}
       />
 
-      {/* 8. PWA INSTALL MODAL */}
+      {/* PWA Install Modal */}
       <InstallPwaModal
         isOpen={isInstallModalOpen}
         onClose={() => setIsInstallModalOpen(false)}

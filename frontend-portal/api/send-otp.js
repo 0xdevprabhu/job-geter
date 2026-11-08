@@ -61,41 +61,63 @@ export default async function handler(req, res) {
     const titleText = purpose === 'signup' ? 'Email Verification Code' : 'Password Reset Request';
     const subject = `⚡ Your ZipZap Verification Code: ${otp}`;
 
-    // Rich Branded HTML
+    // Find authentic ZipZap logo
+    const attachments = [];
+    const possiblePaths = [
+      path.join(process.cwd(), 'frontend-portal', 'public', 'portal', 'zip-zap.png'),
+      path.join(process.cwd(), 'public', 'portal', 'zip-zap.png'),
+      path.join(process.cwd(), 'frontend-portal', 'public', 'zip-zap.png'),
+      path.join(process.cwd(), 'public', 'zip-zap.png'),
+      path.join(process.cwd(), 'frontend-portal', 'public', 'zipzap_logo.png'),
+      path.join(process.cwd(), 'public', 'zipzap_logo.png'),
+      path.join(process.cwd(), 'backend-scraper', 'assets', 'zipzap_logo.png')
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        attachments.push({
+          filename: 'zipzap_logo.png',
+          path: p,
+          cid: 'zipzap_logo'
+        });
+        break;
+      }
+    }
+
+    // Rich Branded HTML with authentic logo
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${titleText} - ZipZap</title>
+  <title>${titleText} - ZipZap Jobs</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 40px 10px;">
     <tr>
       <td align="center">
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08); border: 1px solid #e2e8f0;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); border: 1px solid #e2e8f0;">
           <tr>
-            <td style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%); padding: 36px 36px 30px; text-align: center;">
-              <div style="text-align: center; margin-bottom: 14px;">
-                <img src="cid:zipzap_logo" width="68" height="68" alt="ZipZap" style="display: inline-block; width: 68px; height: 68px; border-radius: 18px; border: 0; outline: none; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);" />
+            <td style="background: linear-gradient(135deg, #001640 0%, #002262 50%, #0b327b 100%); padding: 36px 36px 30px; text-align: center;">
+              <div style="text-align: center; margin-bottom: 12px;">
+                <img src="cid:zipzap_logo" width="72" height="72" alt="ZipZap Logo" style="display: inline-block; width: 72px; height: 72px; border-radius: 18px; border: 0; outline: none; box-shadow: 0 4px 16px rgba(1, 171, 185, 0.4); object-fit: contain; background: #ffffff;" />
               </div>
               <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">
-                ZipZap <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: #f59e0b; font-size: 14px; font-weight: 800; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.4); vertical-align: middle;">JOBS</span>
+                Zip<span style="color: #01ABB9;">Zap</span> <span style="background: #1E60FF; color: #ffffff; font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 6px; vertical-align: middle; margin-left: 4px;">JOBS</span>
               </h1>
-              <p style="margin: 8px 0 0; color: #94a3b8; font-size: 13px; font-weight: 500;">Instant Daily Job Radar & Application Tracker</p>
+              <p style="margin: 8px 0 0; color: #94a3b8; font-size: 13px; font-weight: 500;">Multi-Portal Daily Job Radar & Application Tracker</p>
             </td>
           </tr>
           <tr>
             <td style="padding: 36px 36px 28px;">
-              <h2 style="margin: 0 0 12px; color: #0f172a; font-size: 18px; font-weight: 700;">${titleText}</h2>
+              <h2 style="margin: 0 0 12px; color: #0f172a; font-size: 18px; font-weight: 800;">${titleText}</h2>
               <p style="margin: 0 0 24px; color: #475569; font-size: 14px; line-height: 1.6;">
                 Use the one-time verification code below to ${actionText}. This code will expire in <strong>10 minutes</strong>.
               </p>
-              <div style="background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 14px; padding: 24px; text-align: center; margin-bottom: 24px;">
-                <div style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #2563eb; margin: 0;">
+              <div style="background: #f0f7ff; border: 2px dashed #93c5fd; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 24px;">
+                <div style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 900; letter-spacing: 8px; color: #1e60ff; margin: 0;">
                   ${otp}
                 </div>
-                <div style="color: #64748b; font-size: 12px; margin-top: 8px; font-weight: 500;">⚡ Valid for 10 minutes only</div>
+                <div style="color: #64748b; font-size: 12px; margin-top: 8px; font-weight: 600;">⏱ Valid for 10 minutes only</div>
               </div>
               <p style="margin: 0 0 12px; color: #64748b; font-size: 13px; line-height: 1.5;">
                 🔒 <strong>Security Notice:</strong> Never share this code with anyone. ZipZap support will never ask for your verification code.
@@ -108,7 +130,7 @@ export default async function handler(req, res) {
           <tr>
             <td style="background-color: #f8fafc; padding: 22px 36px; border-top: 1px solid #e2e8f0; text-align: center;">
               <p style="margin: 0 0 4px; color: #64748b; font-size: 12px; font-weight: 600;">
-                ZipZap — Spot Jobs Before Anyone Else
+                ZipZap Jobs — Spot Jobs Before Anyone Else
               </p>
               <p style="margin: 0; color: #94a3b8; font-size: 11px;">
                 Automated notification from your ZipZap platform.
@@ -130,24 +152,6 @@ export default async function handler(req, res) {
         pass: smtpPass
       }
     });
-
-    // Check for logo file
-    const attachments = [];
-    const possiblePaths = [
-      path.join(process.cwd(), 'public', 'zipzap_logo.png'),
-      path.join(process.cwd(), 'frontend-portal', 'public', 'zipzap_logo.png'),
-      path.join(process.cwd(), 'backend-scraper', 'assets', 'zipzap_logo.png')
-    ];
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        attachments.push({
-          filename: 'zipzap_logo.png',
-          path: p,
-          cid: 'zipzap_logo'
-        });
-        break; 
-      }
-    }
 
     await transporter.sendMail({
       from: `"ZipZap Jobs" <${smtpUser}>`,
@@ -172,4 +176,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
