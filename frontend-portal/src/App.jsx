@@ -32,7 +32,8 @@ import {
   User,
   LogIn,
   Filter,
-  CheckCheck
+  CheckCheck,
+  Landmark
 } from 'lucide-react';
 import { db, isFirebaseConfigured } from './firebase';
 import {
@@ -45,8 +46,11 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import { generateSampleJobs } from './demoData';
+import { getFallbackGovtData } from './demoGovtData';
 import PortalIcon from './components/PortalIcon';
+import CustomSelectDropdown from './components/CustomSelectDropdown';
 import ZipZapLogo from './components/ZipZapLogo';
+import GovtJobsSection from './components/GovtJobsSection';
 import {
   HeroIllustration,
   RocketIllustration,
@@ -111,8 +115,12 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Active Navigation Tab: 'dashboard' | 'discover' | 'saved' | 'applications' | 'insights'
+  // Active Navigation Tab: 'dashboard' | 'discover' | 'saved' | 'applications' | 'insights' | 'govt'
   const [activeNav, setActiveNav] = useState('dashboard');
+
+  // Indian Government Jobs & Exams States
+  const [govtItems, setGovtItems] = useState(() => getFallbackGovtData());
+  const [isGovtLoading, setIsGovtLoading] = useState(false);
 
   // Notification Drawer State
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -448,6 +456,57 @@ export default function App() {
       setJobs(filteredByDate);
     }
     setIsLoading(false);
+  };
+
+  // Fetch & Subscribe to Indian Government Jobs from Firestore
+  const fetchGovtNotifications = () => {
+    setIsGovtLoading(true);
+    if (isFirebaseConfigured && db) {
+      try {
+        const colRef = collection(db, 'govt_notifications');
+        const unsubscribe = onSnapshot(
+          colRef,
+          (snapshot) => {
+            const fetched = [];
+            snapshot.forEach((docSnap) => {
+              fetched.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            if (fetched.length > 0) {
+              fetched.sort((a, b) => (b.post_date_iso || '').localeCompare(a.post_date_iso || ''));
+              setGovtItems(fetched);
+            } else {
+              setGovtItems(getFallbackGovtData());
+            }
+            setIsGovtLoading(false);
+          },
+          (err) => {
+            console.warn('Govt notifications error:', err);
+            setGovtItems(getFallbackGovtData());
+            setIsGovtLoading(false);
+          }
+        );
+        return unsubscribe;
+      } catch (e) {
+        console.warn('Failed to listen to govt_notifications:', e);
+        setGovtItems(getFallbackGovtData());
+        setIsGovtLoading(false);
+      }
+    } else {
+      setGovtItems(getFallbackGovtData());
+      setIsGovtLoading(false);
+    }
+    return () => {};
+  };
+
+  useEffect(() => {
+    const unsub = fetchGovtNotifications();
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
+
+  const handleSaveGovtJob = (jobId) => {
+    handleToggleSaved(null, { id: jobId });
   };
 
   // Toggle Saved status
@@ -799,6 +858,27 @@ export default function App() {
               </button>
 
               <button
+                onClick={() => handleNavClick('govt')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                  activeNav === 'govt'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-amber-50/70'
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <Landmark className={`w-5 h-5 shrink-0 ${activeNav === 'govt' ? 'text-white' : 'text-amber-600'}`} />
+                  <span>Govt Jobs & Exams</span>
+                </div>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                    activeNav === 'govt' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {govtItems.length > 0 ? govtItems.length : 'LIVE'}
+                </span>
+              </button>
+
+              <button
                 onClick={() => handleNavClick('saved')}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
                   activeNav === 'saved'
@@ -1065,8 +1145,22 @@ export default function App() {
           </div>
 
           {/* ===================================================== */}
-          {/* WELCOME HERO BANNER                                    */}
+          {/* TAB: DEDICATED ALL INDIA & STATE GOVT EXAMS PORTAL   */}
           {/* ===================================================== */}
+          {activeNav === 'govt' ? (
+            <GovtJobsSection
+              govtItems={govtItems}
+              isLoading={isGovtLoading}
+              currentUser={currentUser}
+              savedJobIds={currentUser?.saved_job_ids || []}
+              onSaveJob={handleSaveGovtJob}
+              onRefresh={fetchGovtNotifications}
+            />
+          ) : (
+            <>
+              {/* ===================================================== */}
+              {/* WELCOME HERO BANNER                                    */}
+              {/* ===================================================== */}
           <section className="relative rounded-3xl bg-gradient-to-r from-[#EBF3FE] via-[#EDF5FF] to-[#DBEAFE] p-4 sm:p-5 xl:p-6 border border-blue-100/90 shadow-[0_4px_20px_rgba(37,99,235,0.04)] overflow-hidden">
             <div className="absolute right-0 top-0 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -1356,39 +1450,31 @@ export default function App() {
                   <ChevronDown className="w-3 h-3 text-slate-400" />
                 </div> */}
 
-                {/* Job Role Dropdown Pill */}
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800">
-                  <Briefcase className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <select
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value)}
-                    className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
-                  >
-                    <option value="All">All Job Roles ({availableRoles.length})</option>
-                    {availableRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Job Role Dropdown Pill (Custom UI) */}
+                <CustomSelectDropdown
+                  icon={Briefcase}
+                  iconColor="text-slate-500"
+                  value={selectedRole}
+                  onChange={(val) => setSelectedRole(val)}
+                  options={availableRoles.map((role) => ({
+                    value: role,
+                    label: role === 'All' ? `All Job Roles (${availableRoles.length - 1})` : role
+                  }))}
+                  placeholder="Select Job Role"
+                />
 
-                {/* Location Dropdown Pill */}
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
-                  >
-                    <option value="All">All Locations ({availableLocations.length})</option>
-                    {availableLocations.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Location Dropdown Pill (Custom UI) */}
+                <CustomSelectDropdown
+                  icon={MapPin}
+                  iconColor="text-emerald-600"
+                  value={selectedLocation}
+                  onChange={(val) => setSelectedLocation(val)}
+                  options={availableLocations.map((loc) => ({
+                    value: loc,
+                    label: loc === 'All' ? `All Locations (${availableLocations.length - 1})` : loc
+                  }))}
+                  placeholder="Select Location"
+                />
               </div>
 
               {/* Right: Status Filter Tabs + Reset */}
@@ -1906,6 +1992,8 @@ export default function App() {
               )}
             </div>
           )}
+            </>
+          )}
         </main>
       </div>
 
@@ -1932,6 +2020,16 @@ export default function App() {
           >
             <Compass className="w-5 h-5" />
             <span className="text-[10px]">Discover</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('govt')}
+            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
+              activeNav === 'govt' ? 'text-amber-600 font-bold' : 'text-slate-500'
+            }`}
+          >
+            <Landmark className="w-5 h-5" />
+            <span className="text-[10px]">Govt</span>
           </button>
 
           <button

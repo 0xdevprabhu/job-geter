@@ -30,6 +30,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend-scraper/requirements.txt
 
+      - name: Run Indian Govt Jobs & Exams Scraper
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python backend-scraper/govt_scraper.py
+
       - name: Run Job Scraper
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
