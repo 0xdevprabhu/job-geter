@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://job-geter.vercel.app/</loc>
+    <changefreq>hourly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://job-geter.vercel.app/?tab=govt</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.95</priority>
+  </url>
+  <url>
+    <loc>https://job-geter.vercel.app/?tab=discover</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://job-geter.vercel.app/?state=Tamil+Nadu&amp;tab=govt</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://job-geter.vercel.app/?state=All+India&amp;tab=govt</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://job-geter.vercel.app/?category=job&amp;tab=govt</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://job-geter.vercel.app/?category=admit_card&amp;tab=govt</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://job-geter.vercel.app/?category=result&amp;tab=govt</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.85</priority>
+  </url>
+</urlset>
+

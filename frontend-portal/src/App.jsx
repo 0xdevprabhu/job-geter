@@ -51,6 +51,7 @@ import PortalIcon from './components/PortalIcon';
 import CustomSelectDropdown from './components/CustomSelectDropdown';
 import ZipZapLogo from './components/ZipZapLogo';
 import GovtJobsSection from './components/GovtJobsSection';
+import DynamicJobPostingSeo from './components/DynamicJobPostingSeo';
 import {
   HeroIllustration,
   RocketIllustration,
@@ -784,6 +785,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F4F7FC] text-slate-800 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
+      {/* Dynamic Google for Jobs Rich Snippets (SEO JSON-LD Injection) */}
+      <DynamicJobPostingSeo jobs={jobs} govtItems={govtItems} activeNav={activeNav} />
+
       {/* ========================================================= */}
       {/* 1. MOBILE TOP STICKY HEADER                               */}
       {/* ========================================================= */}

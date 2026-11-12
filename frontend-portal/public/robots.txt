@@ -1,0 +1,17 @@
+# Robots.txt for ZipZap Jobs Portal
+# Production Domain: https://job-geter.vercel.app
+
+User-agent: *
+Allow: /
+Allow: /index.html
+Allow: /api/sitemap.xml
+Allow: /sitemap.xml
+
+# Disallow sensitive internal admin and verification routes from search indexing
+Disallow: /api/send-otp
+Disallow: /api/verify-otp
+Disallow: /api/test-smtp
+
+# Dynamic Auto-Updating Sitemap for Googlebot & Bingbot
+Sitemap: https://job-geter.vercel.app/sitemap.xml
+
