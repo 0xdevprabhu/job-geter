@@ -9,6 +9,8 @@ export default function CustomSelectDropdown({
   options = [],
   placeholder = 'Select option',
   searchable = true,
+  fullWidth = true,
+  alignRight = false,
   className = '',
   buttonClassName = ''
 }) {
@@ -46,18 +48,18 @@ export default function CustomSelectDropdown({
   }, [options, value, placeholder]);
 
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
+    <div className={`relative min-w-0 ${fullWidth ? 'w-full' : ''} ${className}`} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => {
           setIsOpen(!isOpen);
           setFilterText('');
         }}
-        className={`flex items-center justify-between gap-1.5 bg-slate-50 hover:bg-slate-100/90 border ${
+        className={`${fullWidth ? 'w-full' : ''} min-w-0 overflow-hidden flex items-center justify-between gap-2 bg-slate-50 hover:bg-slate-100/90 border ${
           isOpen ? 'border-[#1E60FF] ring-2 ring-blue-100 bg-white' : 'border-slate-200/90'
-        } rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 transition-all text-left shadow-2xs ${buttonClassName}`}
+        } rounded-xl px-3 py-2 text-xs font-bold text-slate-800 transition-all text-left shadow-2xs ${buttonClassName}`}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
           {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${iconColor}`} />}
           <span className="truncate block font-semibold text-slate-800">{currentLabel}</span>
         </div>
@@ -70,7 +72,11 @@ export default function CustomSelectDropdown({
 
       {/* Custom Popup Menu */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-1.5 min-w-[200px] max-w-[300px] bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className={`absolute top-full mt-1.5 ${
+          alignRight ? 'right-0' : 'left-0'
+        } ${
+          fullWidth ? 'w-full min-w-[220px]' : 'min-w-[200px] max-w-[320px]'
+        } max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150`}>
           {searchable && options.length > 6 && (
             <div className="p-2 border-b border-slate-100 bg-slate-50/70">
               <div className="relative">

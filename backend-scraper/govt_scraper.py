@@ -132,8 +132,13 @@ def initialize_firebase():
     return None
 
 
+def normalize_key_part(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", (value or "").lower())).strip()
+
+
 def generate_item_id(category: str, board: str, title: str, post_date: str) -> str:
-    key = f"{category.strip().lower()}_{board.strip().lower()}_{title.strip().lower()}_{post_date.strip()}"
+    """Canonical deterministic ID independent of table state so Central/State duplicates merge."""
+    key = f"{normalize_key_part(category)}_{normalize_key_part(board)}_{normalize_key_part(title)}_{normalize_key_part(post_date)}"
     return hashlib.md5(key.encode("utf-8")).hexdigest()
 
 
@@ -401,7 +406,10 @@ def scrape_all_india_and_state_jobs(max_per_state: int = 5) -> List[Dict[str, An
                     post_date_iso = parse_date_to_iso(post_date_raw)
                     last_date_iso = parse_date_to_iso(last_date_raw)
                     status_info = calculate_job_status(last_date_iso, "job")
-                    doc_id = generate_item_id("job", f"{board}_{state}", title, post_date_raw)
+                    # Skip already expired postings so only active notifications enter the feed
+                    if status_info["days_left"] is not None and status_info["days_left"] < 0:
+                        continue
+                    doc_id = generate_item_id("job", board, title, post_date_raw)
 
                     jobs.append({
                         "id": doc_id,
@@ -478,7 +486,7 @@ def scrape_tabular_section(url: str, category: str, default_status: str, badge_c
                     district = detect_district(state, board, raw_title)
                     sector = detect_sector(board, raw_title, state)
                     post_date_iso = parse_date_to_iso(post_date_raw)
-                    doc_id = generate_item_id(category, f"{board}_{state}", raw_title, post_date_raw)
+                    doc_id = generate_item_id(category, board, raw_title, post_date_raw)
 
                     if category == "admit_card":
                         title = f"{board} {raw_title} Hall Ticket / Admit Card"
@@ -542,6 +550,49 @@ def enrich_all_items_with_direct_links(items: List[Dict[str, Any]], max_workers:
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(enrich_item_links, items)
     logger.info("✓ Finished resolving direct links.")
+
+
+def cleanup_expired_notifications(db, keep_active_ids: List[str]):
+    """Purge notifications from Firestore that have passed their last date or are no longer active."""
+    if not db:
+        return
+    try:
+        col_ref = db.collection("govt_notifications")
+        today_iso = datetime.now(IST).strftime("%Y-%m-%d")
+        deleted_count = 0
+
+        # Query all docs in govt_notifications to check expiration
+        docs = col_ref.stream()
+        for doc_snap in docs:
+            data = doc_snap.to_dict()
+            last_date_iso = data.get("last_date_iso")
+            category = data.get("category", "job")
+            doc_id = doc_snap.id
+
+            # If it's a job and last date has passed, delete it
+            should_delete = False
+            if category == "job" and last_date_iso and last_date_iso < today_iso:
+                should_delete = True
+            
+            # If item was scraped long ago (>45 days) for results/admit cards, cleanup stale ones
+            post_date_iso = data.get("post_date_iso")
+            if post_date_iso:
+                try:
+                    post_dt = datetime.strptime(post_date_iso[:10], "%Y-%m-%d")
+                    now_dt = datetime.now()
+                    if (now_dt - post_dt).days > 60:
+                        should_delete = True
+                except Exception:
+                    pass
+
+            if should_delete:
+                doc_snap.reference.delete()
+                deleted_count += 1
+
+        if deleted_count > 0:
+            logger.info(f"🧹 Cleaned up {deleted_count} expired/stale government notifications from Firestore.")
+    except Exception as e:
+        logger.warning(f"Could not run cleanup on expired notifications: {e}")
 
 
 def push_to_firestore(db, items: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -626,10 +677,11 @@ def main():
     # Step 3: Save local preview
     save_local_preview(all_items)
 
-    # Step 4: Push to Firestore
+    # Step 4: Push to Firestore & Cleanup Expired
     if db:
         stats = push_to_firestore(db, all_items)
         logger.info(f"Database Sync Results: Created={stats['created']}, Updated={stats['updated']}, Failed={stats['failed']}")
+        cleanup_expired_notifications(db, [it["id"] for it in all_items])
 
     elapsed = round(time.time() - start_time, 2)
     logger.info("=====================================================")

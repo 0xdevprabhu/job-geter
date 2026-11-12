@@ -162,6 +162,7 @@ export async function registerUser(email, password, name = '') {
     created_at: new Date().toISOString(),
     last_login_at: new Date().toISOString(),
     saved_job_ids: [],
+    saved_govt_job_ids: [],
     read_job_ids: [],
   };
 
@@ -175,6 +176,7 @@ export async function registerUser(email, password, name = '') {
     name: cleanName,
     displayName: cleanName,
     saved_job_ids: [],
+    saved_govt_job_ids: [],
     read_job_ids: [],
   };
   setSavedSession(session);
@@ -259,6 +261,7 @@ export async function loginUser(email, password) {
     name: userName,
     displayName: userName,
     saved_job_ids: userData.saved_job_ids || [],
+    saved_govt_job_ids: userData.saved_govt_job_ids || [],
     read_job_ids: userData.read_job_ids || [],
   };
   setSavedSession(session);
@@ -324,6 +327,44 @@ export async function cleanMissingSavedJobs(email, validJobIds) {
   setSavedSession(session);
 }
 
+// Toggle saved Govt Job ID for a user (separate from private jobs)
+export async function toggleSavedGovtJob(email, govtJobId, isCurrentlySaved) {
+  if (!email || !govtJobId) return;
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const userRef = doc(db, 'users', cleanEmail);
+      await updateDoc(userRef, {
+        saved_govt_job_ids: isCurrentlySaved ? arrayRemove(govtJobId) : arrayUnion(govtJobId),
+      });
+    } catch (err) {
+      console.error('Error toggling saved govt job in Firestore:', err);
+    }
+  }
+}
+
+// Synchronize / Clean deleted or expired Govt Job IDs from user's saved list in Firestore
+export async function cleanMissingSavedGovtJobs(email, validGovtIds) {
+  if (!email || !Array.isArray(validGovtIds)) return;
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const userRef = doc(db, 'users', cleanEmail);
+      await updateDoc(userRef, {
+        saved_govt_job_ids: validGovtIds,
+      });
+    } catch (err) {
+      console.warn('Could not sync valid saved govt job IDs:', err);
+    }
+  }
+
+  const session = getSavedSession() || {};
+  session.saved_govt_job_ids = validGovtIds;
+  setSavedSession(session);
+}
+
 // Toggle read job ID for a user
 export async function toggleReadJob(email, jobId, isCurrentlyRead) {
   if (!email || !jobId) return;
@@ -358,6 +399,7 @@ export function subscribeToUserData(email, callback) {
           name: data.name || data.displayName || cleanEmail.split('@')[0],
           displayName: data.name || data.displayName || cleanEmail.split('@')[0],
           saved_job_ids: data.saved_job_ids || [],
+          saved_govt_job_ids: data.saved_govt_job_ids || [],
           read_job_ids: data.read_job_ids || [],
           created_at: data.created_at || null,
         });

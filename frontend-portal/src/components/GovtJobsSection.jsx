@@ -17,12 +17,38 @@ import {
   ArrowUpRight,
   Check,
   Building2,
-  TrendingUp,
   SlidersHorizontal,
-  ChevronDown,
-  X
+  X,
+  Flame
 } from 'lucide-react';
 import CustomSelectDropdown from './CustomSelectDropdown';
+
+// Helper: Current Indian Standard Time (YYYY-MM-DD)
+function getTodayISTDate() {
+  const istStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  const [y, m, d] = istStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function parseIsoToLocalDate(isoStr) {
+  if (!isoStr || typeof isoStr !== 'string') return null;
+  const parts = isoStr.slice(0, 10).split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function normalizeDedupeKey(item) {
+  const cat = (item.category || 'job').toLowerCase().trim();
+  const board = (item.board || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const title = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const postDate = (item.post_date || '').trim();
+  return `${cat}_${board}_${title}_${postDate}`;
+}
 
 export default function GovtJobsSection({
   govtItems = [],
@@ -32,48 +58,109 @@ export default function GovtJobsSection({
   onSaveJob,
   savedJobIds = []
 }) {
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all', 'job', 'admit_card', 'result', 'exam_date'
+  const [activeCategory, setActiveCategory] = useState('all'); // 'all', 'job', 'admit_card', 'result', 'exam_date', 'saved'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedState, setSelectedState] = useState('All');
   const [selectedDistrict, setSelectedDistrict] = useState('All');
   const [selectedJobRole, setSelectedJobRole] = useState('All');
   const [selectedSector, setSelectedSector] = useState('All');
   const [selectedQualification, setSelectedQualification] = useState('All');
+  const [showClosed, setShowClosed] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+
+  // Deduplicate items defensively & compute live days_left / status in IST
+  const processedGovtItems = useMemo(() => {
+    const todayDate = getTodayISTDate();
+    const map = new Map();
+
+    govtItems.forEach((rawItem) => {
+      const key = normalizeDedupeKey(rawItem);
+      const existing = map.get(key);
+
+      // Prefer specific state over "All India" if duplicates exist in older data
+      if (existing) {
+        const existingIsGeneric = !existing.state || existing.state === 'All India';
+        const currentIsSpecific = rawItem.state && rawItem.state !== 'All India';
+        if (!(existingIsGeneric && currentIsSpecific)) {
+          return;
+        }
+      }
+
+      // Compute live status and days_left relative to today's IST date
+      let liveDaysLeft = rawItem.days_left ?? null;
+      let liveStatus = rawItem.status || 'Application Open';
+
+      if ((rawItem.category === 'job' || !rawItem.category) && rawItem.last_date_iso) {
+        const endDate = parseIsoToLocalDate(rawItem.last_date_iso);
+        if (endDate) {
+          const diffDays = Math.round((endDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+          liveDaysLeft = diffDays;
+          if (diffDays < 0) {
+            liveStatus = 'Registration Closed';
+          } else if (diffDays === 0) {
+            liveStatus = 'Closes Today!';
+          } else if (diffDays <= 3) {
+            liveStatus = `Closes in ${diffDays}d`;
+          } else {
+            liveStatus = 'Application Open';
+          }
+        }
+      }
+
+      const vacNum = rawItem.vacancies
+        ? parseInt(String(rawItem.vacancies).replace(/[^\d]/g, ''), 10) || 0
+        : 0;
+
+      map.set(key, {
+        ...rawItem,
+        days_left: liveDaysLeft,
+        status: liveStatus,
+        is_expired: liveDaysLeft !== null && liveDaysLeft < 0,
+        vacancy_count: vacNum,
+      });
+    });
+
+    return Array.from(map.values());
+  }, [govtItems]);
+
+  // Active (non-expired) pool unless user toggles closed
+  const activePool = useMemo(() => {
+    if (showClosed) return processedGovtItems;
+    return processedGovtItems.filter((it) => !it.is_expired);
+  }, [processedGovtItems, showClosed]);
 
   // Derive unique states list from live items
   const availableStates = useMemo(() => {
     const set = new Set();
-    govtItems.forEach((it) => {
+    activePool.forEach((it) => {
       if (it.state && it.state !== 'All India') set.add(it.state);
     });
     const sorted = Array.from(set).sort();
     return ['All', 'All India', ...sorted];
-  }, [govtItems]);
+  }, [activePool]);
 
   // Derive available districts for selected state
   const availableDistricts = useMemo(() => {
     if (selectedState === 'All' || selectedState === 'All India') {
       const set = new Set();
-      govtItems.forEach((it) => {
+      activePool.forEach((it) => {
         if (it.district) set.add(it.district);
       });
       return ['All', ...Array.from(set).sort()];
     }
     const set = new Set();
-    govtItems.forEach((it) => {
+    activePool.forEach((it) => {
       if (it.state === selectedState && it.district) {
         set.add(it.district);
       }
     });
     return ['All', ...Array.from(set).sort()];
-  }, [govtItems, selectedState]);
+  }, [activePool, selectedState]);
 
   // Dynamically derive available Job Roles based on selected State & District
   const availableJobRoles = useMemo(() => {
     const set = new Set();
-    govtItems.forEach((it) => {
-      // Must match state filter
+    activePool.forEach((it) => {
       if (selectedState !== 'All') {
         if (selectedState === 'All India') {
           if (it.state !== 'All India') return;
@@ -81,17 +168,15 @@ export default function GovtJobsSection({
           return;
         }
       }
-      // Must match district filter if one is picked
       if (selectedDistrict !== 'All' && it.district !== selectedDistrict) {
         return;
       }
-      // Add job title/role
       if (it.title) {
         set.add(it.title.trim());
       }
     });
     return ['All', ...Array.from(set).sort()];
-  }, [govtItems, selectedState, selectedDistrict]);
+  }, [activePool, selectedState, selectedDistrict]);
 
   // Derive sectors list
   const sectors = [
@@ -116,29 +201,38 @@ export default function GovtJobsSection({
     'Diploma / ITI'
   ];
 
-  // Calculate live statistics
+  // Count active saved govt notifications
+  const savedGovtCount = useMemo(() => {
+    return processedGovtItems.filter((it) => savedJobIds.includes(it.id) && !it.is_expired).length;
+  }, [processedGovtItems, savedJobIds]);
+
+  const expiredCount = useMemo(() => {
+    return processedGovtItems.filter((it) => it.is_expired).length;
+  }, [processedGovtItems]);
+
+  // Calculate live statistics strictly on active (open) items
   const stats = useMemo(() => {
-    const total = govtItems.length;
-    const jobsCount = govtItems.filter((i) => i.category === 'job').length;
-    const admitCardsCount = govtItems.filter((i) => i.category === 'admit_card').length;
-    const resultsCount = govtItems.filter((i) => i.category === 'result').length;
-    const examDatesCount = govtItems.filter((i) => i.category === 'exam_date').length;
+    const openItems = processedGovtItems.filter((i) => !i.is_expired);
+    const total = openItems.length;
+    const jobsCount = openItems.filter((i) => i.category === 'job').length;
+    const admitCardsCount = openItems.filter((i) => i.category === 'admit_card').length;
+    const resultsCount = openItems.filter((i) => i.category === 'result').length;
+    const examDatesCount = openItems.filter((i) => i.category === 'exam_date').length;
 
     let totalVacancies = 0;
-    govtItems.forEach((i) => {
-      if (i.vacancies) {
-        const num = parseInt(i.vacancies.replace(/[^\d]/g, ''), 10);
-        if (!isNaN(num) && num > 0) totalVacancies += num;
-      }
+    openItems.forEach((i) => {
+      if (i.vacancy_count > 0) totalVacancies += i.vacancy_count;
     });
 
     return { total, jobsCount, admitCardsCount, resultsCount, examDatesCount, totalVacancies };
-  }, [govtItems]);
+  }, [processedGovtItems]);
 
-  // Filter items
+  // Filter & Sort items cleanly (Closing Soonest / Latest Posted first)
   const filteredItems = useMemo(() => {
-    return govtItems.filter((item) => {
-      if (activeCategory !== 'all' && item.category !== activeCategory) {
+    const filtered = activePool.filter((item) => {
+      if (activeCategory === 'saved') {
+        if (!savedJobIds.includes(item.id)) return false;
+      } else if (activeCategory !== 'all' && item.category !== activeCategory) {
         return false;
       }
 
@@ -156,7 +250,7 @@ export default function GovtJobsSection({
         if (item.district !== selectedDistrict) return false;
       }
 
-      // Job Role Filter (Dynamic based on selected state/district)
+      // Job Role Filter
       if (selectedJobRole !== 'All') {
         if (item.title !== selectedJobRole) return false;
       }
@@ -199,7 +293,26 @@ export default function GovtJobsSection({
 
       return true;
     });
-  }, [govtItems, activeCategory, selectedState, selectedDistrict, selectedJobRole, selectedSector, selectedQualification, searchQuery]);
+
+    // Prioritize urgent items closing within 2 days, then newest posted date
+    return filtered.sort((a, b) => {
+      const aUrgent = a.days_left !== null && a.days_left >= 0 && a.days_left <= 2;
+      const bUrgent = b.days_left !== null && b.days_left >= 0 && b.days_left <= 2;
+      if (aUrgent !== bUrgent) return aUrgent ? -1 : 1;
+      if (a.is_expired !== b.is_expired) return a.is_expired ? 1 : -1;
+      return (b.post_date_iso || '').localeCompare(a.post_date_iso || '');
+    });
+  }, [
+    activePool,
+    activeCategory,
+    savedJobIds,
+    selectedState,
+    selectedDistrict,
+    selectedJobRole,
+    selectedSector,
+    selectedQualification,
+    searchQuery
+  ]);
 
   const handleCopyLink = (item) => {
     const url = item.apply_url || item.details_url || window.location.href;
@@ -393,21 +506,39 @@ export default function GovtJobsSection({
             {stats.examDatesCount}
           </span>
         </button>
+
+        {/* Saved Govt Jobs Tab */}
+        <button
+          onClick={() => setActiveCategory('saved')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all shadow-xs ${
+            activeCategory === 'saved'
+              ? 'bg-purple-600 text-white shadow-purple-500/25'
+              : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
+          }`}
+        >
+          <Bookmark className="w-4 h-4" />
+          <span>Saved Govt Jobs</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            activeCategory === 'saved' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
+          }`}>
+            {savedGovtCount}
+          </span>
+        </button>
       </div>
 
       {/* ========================================================= */}
       {/* 3. MULTI-LEVEL FILTER BAR: STATE, DISTRICT, SECTOR, QUAL  */}
       {/* ========================================================= */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-sm space-y-3.5">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-5 border border-slate-200/90 shadow-xs sm:shadow-sm space-y-3">
         {/* Top Row: Search Input */}
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by Board (TNPSC, UPSC, SBI, RRB), Post, State (Tamil Nadu), or District (Chennai, Madurai, Trichy)..."
+            placeholder="Search Board, Post, State (Tamil Nadu), or District..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-11 pr-10 py-3 rounded-2xl text-xs sm:text-sm bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E60FF] focus:border-transparent transition shadow-inner"
+            className="w-full pl-10 sm:pl-11 pr-10 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E60FF] focus:border-transparent transition shadow-inner"
           />
           {searchQuery && (
             <button
@@ -419,8 +550,8 @@ export default function GovtJobsSection({
           )}
         </div>
 
-        {/* Bottom Row: State, District, Job Role, Sector, Qualification Dropdowns (Custom UI Dropdowns) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        {/* Bottom Filters: Mobile 1-col (no squished overlap) / Tablet 2-col / Desktop 5-col */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5">
           {/* State Filter */}
           <CustomSelectDropdown
             icon={MapPin}
@@ -508,25 +639,42 @@ export default function GovtJobsSection({
           />
         </div>
 
-        {/* Quick State Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-1 pb-0.5 scrollbar-none text-[11px] font-semibold text-slate-600">
-          <span className="text-[10px] uppercase font-bold text-slate-400 mr-1 shrink-0">Popular:</span>
-          {['All', 'Tamil Nadu', 'All India', 'Kerala', 'Karnataka', 'Delhi', 'Maharashtra', 'Uttar Pradesh'].map((st) => (
-            <button
-              key={st}
-              onClick={() => {
-                setSelectedState(st);
-                setSelectedDistrict('All');
-              }}
-              className={`px-3 py-1 rounded-full whitespace-nowrap transition font-bold ${
-                selectedState === st
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
+        {/* Quick State Pills & Expired Jobs Toggle Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-[11px] font-semibold text-slate-600">
+            <span className="text-[10px] uppercase font-bold text-slate-400 mr-1 shrink-0">Popular:</span>
+            {['All', 'Tamil Nadu', 'All India', 'Kerala', 'Karnataka', 'Delhi', 'Maharashtra', 'Uttar Pradesh'].map((st) => (
+              <button
+                key={st}
+                onClick={() => {
+                  setSelectedState(st);
+                  setSelectedDistrict('All');
+                }}
+                className={`px-3 py-1 rounded-full whitespace-nowrap transition font-bold ${
+                  selectedState === st
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
+
+          {/* Show / Hide Expired Jobs Toggle */}
+          {expiredCount > 0 && (
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto text-xs">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-500 hover:text-slate-700 font-medium">
+                <input
+                  type="checkbox"
+                  checked={showClosed}
+                  onChange={(e) => setShowClosed(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                />
+                <span className="text-[11px]">Include Closed ({expiredCount})</span>
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
@@ -632,9 +780,13 @@ export default function GovtJobsSection({
 
                     {/* Status Badge */}
                     <div className="shrink-0">
-                      {item.days_left !== null && item.days_left >= 0 && item.days_left <= 3 ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
-                          <Clock className="w-3 h-3 text-amber-600" />
+                      {item.is_expired ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                          <span>Closed</span>
+                        </span>
+                      ) : item.days_left !== null && item.days_left >= 0 && item.days_left <= 3 ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                          <Flame className="w-3 h-3 text-rose-600" />
                           <span>{item.status}</span>
                         </span>
                       ) : item.category === 'admit_card' ? (

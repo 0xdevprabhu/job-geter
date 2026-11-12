@@ -66,9 +66,11 @@ import {
   getSavedSession,
   setSavedSession,
   toggleSavedJob,
+  toggleSavedGovtJob,
   toggleReadJob,
   subscribeToUserData,
-  cleanMissingSavedJobs
+  cleanMissingSavedJobs,
+  cleanMissingSavedGovtJobs
 } from './services/authService';
 
 export default function App() {
@@ -257,6 +259,17 @@ export default function App() {
         if (validIds.length !== savedIds.length) {
           cleanMissingSavedJobs(currentUser.email, validIds);
           setCurrentUser((prev) => ({ ...prev, saved_job_ids: validIds }));
+        }
+
+        // Auto-clean any saved govt job IDs that were removed from Firebase or expired
+        const savedGovtIds = currentUser.saved_govt_job_ids || [];
+        if (savedGovtIds.length > 0 && govtItems.length > 0) {
+          const liveGovtIdSet = new Set(govtItems.map((g) => g.id));
+          const validGovtIds = savedGovtIds.filter((id) => liveGovtIdSet.has(id));
+          if (validGovtIds.length !== savedGovtIds.length) {
+            cleanMissingSavedGovtJobs(currentUser.email, validGovtIds);
+            setCurrentUser((prev) => ({ ...prev, saved_govt_job_ids: validGovtIds }));
+          }
         }
       } catch (err) {
         console.warn('Error loading saved jobs:', err);
@@ -505,8 +518,24 @@ export default function App() {
     };
   }, []);
 
-  const handleSaveGovtJob = (jobId) => {
-    handleToggleSaved(null, { id: jobId });
+  const handleSaveGovtJob = async (jobId) => {
+    if (!currentUser) {
+      setUserAuthMode('login');
+      setIsUserAuthModalOpen(true);
+      return;
+    }
+
+    const savedGovtList = currentUser.saved_govt_job_ids || [];
+    const isCurrentlySaved = savedGovtList.includes(jobId);
+    const updatedSaved = isCurrentlySaved
+      ? savedGovtList.filter((id) => id !== jobId)
+      : [...savedGovtList, jobId];
+
+    const updatedUser = { ...currentUser, saved_govt_job_ids: updatedSaved };
+    setCurrentUser(updatedUser);
+    setSavedSession(updatedUser);
+
+    await toggleSavedGovtJob(currentUser.email, jobId, isCurrentlySaved);
   };
 
   // Toggle Saved status
@@ -1152,7 +1181,7 @@ export default function App() {
               govtItems={govtItems}
               isLoading={isGovtLoading}
               currentUser={currentUser}
-              savedJobIds={currentUser?.saved_job_ids || []}
+              savedJobIds={currentUser?.saved_govt_job_ids || []}
               onSaveJob={handleSaveGovtJob}
               onRefresh={fetchGovtNotifications}
             />
@@ -2000,69 +2029,93 @@ export default function App() {
       {/* ========================================================= */}
       {/* 3. MOBILE FIXED BOTTOM NAVIGATION BAR                      */}
       {/* ========================================================= */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] px-3 py-2 pb-safe">
-        <div className="flex items-center justify-around">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1.5 pb-safe">
+        <div className="grid grid-cols-6 items-center w-full max-w-md mx-auto">
           <button
             onClick={() => handleNavClick('dashboard')}
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
-              activeNav === 'dashboard' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center py-1 transition-all rounded-xl ${
+              activeNav === 'dashboard'
+                ? 'text-[#1E60FF] font-black scale-105'
+                : 'text-slate-500 hover:text-slate-800 font-semibold'
             }`}
           >
-            <LayoutDashboard className="w-5 h-5" />
-            <span className="text-[10px]">Dashboard</span>
+            <div className={`p-1 rounded-xl transition ${activeNav === 'dashboard' ? 'bg-blue-50 text-[#1E60FF]' : ''}`}>
+              <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <span className="text-[9px] sm:text-[10px] leading-tight mt-0.5 truncate max-w-full">Dashboard</span>
           </button>
 
           <button
             onClick={() => handleNavClick('discover')}
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
-              activeNav === 'discover' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center py-1 transition-all rounded-xl ${
+              activeNav === 'discover'
+                ? 'text-[#1E60FF] font-black scale-105'
+                : 'text-slate-500 hover:text-slate-800 font-semibold'
             }`}
           >
-            <Compass className="w-5 h-5" />
-            <span className="text-[10px]">Discover</span>
+            <div className={`p-1 rounded-xl transition ${activeNav === 'discover' ? 'bg-blue-50 text-[#1E60FF]' : ''}`}>
+              <Compass className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <span className="text-[9px] sm:text-[10px] leading-tight mt-0.5 truncate max-w-full">Discover</span>
           </button>
 
           <button
             onClick={() => handleNavClick('govt')}
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
-              activeNav === 'govt' ? 'text-amber-600 font-bold' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center py-1 transition-all rounded-xl ${
+              activeNav === 'govt'
+                ? 'text-amber-700 font-black scale-105'
+                : 'text-slate-500 hover:text-slate-800 font-semibold'
             }`}
           >
-            <Landmark className="w-5 h-5" />
-            <span className="text-[10px]">Govt</span>
+            <div className={`p-1 rounded-xl transition ${activeNav === 'govt' ? 'bg-amber-100 text-amber-700' : ''}`}>
+              <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <span className="text-[9px] sm:text-[10px] leading-tight mt-0.5 truncate max-w-full">Govt</span>
           </button>
 
           <button
             onClick={() => handleNavClick('saved')}
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl relative transition ${
-              activeNav === 'saved' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center py-1 relative transition-all rounded-xl ${
+              activeNav === 'saved'
+                ? 'text-purple-700 font-black scale-105'
+                : 'text-slate-500 hover:text-slate-800 font-semibold'
             }`}
           >
-            <Bookmark className="w-5 h-5" />
-            <span className="text-[10px]">Saved</span>
+            <div className={`p-1 rounded-xl transition ${activeNav === 'saved' ? 'bg-purple-100 text-purple-700' : ''}`}>
+              <Bookmark className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <span className="text-[9px] sm:text-[10px] leading-tight mt-0.5 truncate max-w-full">Saved</span>
             {userSavedCount > 0 && (
-              <span className="absolute top-0 right-2 w-2 h-2 rounded-full bg-purple-600" />
+              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-purple-600 ring-2 ring-white" />
             )}
           </button>
 
           <button
             onClick={() => handleNavClick('applications')}
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl relative transition ${
-              activeNav === 'applications' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center py-1 relative transition-all rounded-xl ${
+              activeNav === 'applications'
+                ? 'text-[#1E60FF] font-black scale-105'
+                : 'text-slate-500 hover:text-slate-800 font-semibold'
             }`}
           >
-            <Send className="w-5 h-5" />
-            <span className="text-[10px]">Applications</span>
+            <div className={`p-1 rounded-xl transition ${activeNav === 'applications' ? 'bg-blue-50 text-[#1E60FF]' : ''}`}>
+              <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <span className="text-[9px] sm:text-[10px] leading-tight mt-0.5 truncate max-w-full">Applied</span>
           </button>
 
           <button
             onClick={() => handleNavClick('insights')}
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition ${
-              activeNav === 'insights' ? 'text-[#1E60FF] font-bold' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center py-1 transition-all rounded-xl ${
+              activeNav === 'insights'
+                ? 'text-[#1E60FF] font-black scale-105'
+                : 'text-slate-500 hover:text-slate-800 font-semibold'
             }`}
           >
-            <BarChart2 className="w-5 h-5" />
-            <span className="text-[10px]">Insights</span>
+            <div className={`p-1 rounded-xl transition ${activeNav === 'insights' ? 'bg-blue-50 text-[#1E60FF]' : ''}`}>
+              <BarChart2 className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <span className="text-[9px] sm:text-[10px] leading-tight mt-0.5 truncate max-w-full">Insights</span>
           </button>
         </div>
       </nav>
