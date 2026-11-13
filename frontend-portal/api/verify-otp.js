@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-const OTP_SECRET = process.env.OTP_SECRET || 'zipzap-cloud-secret-otp-token-2026';
+const OTP_SECRET = process.env.OTP_SECRET || 'traptip-cloud-secret-otp-token-2026';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed. Use POST.' });
-  } 
+  }
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
@@ -56,5 +56,5 @@ export default async function handler(req, res) {
     console.error('[verify-otp] Error:', err);
     return res.status(500).json({ success: false, error: 'Failed to verify OTP.' });
   }
-} 
+}
 

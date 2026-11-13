@@ -24,10 +24,10 @@ export default function InstallPwaModal({
 
           {/* Logo Badge */}
           <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-2 mx-auto mb-3 shadow-lg flex items-center justify-center">
-            <img src="/zipzap_logo.png" alt="ZipZap" className="w-12 h-12 rounded-xl" />
+            <img src="/traptip.png" alt="Traptip" className="w-12 h-12 rounded-xl object-contain" />
           </div>
 
-          <h3 className="text-xl font-black tracking-tight">Install ZipZap App</h3>
+          <h3 className="text-xl font-black tracking-tight">Install Traptip App</h3>
           <p className="text-xs text-blue-100 font-medium mt-1">
             Fast, lightning-speed access right from your Home Screen & Desktop
           </p>
@@ -65,12 +65,12 @@ export default function InstallPwaModal({
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition transform hover:scale-[1.01] active:scale-[0.99]"
               >
                 <Download className="w-4 h-4" />
-                <span>Install ZipZap Now</span>
+                <span>Install Traptip Now</span>
               </button>
             </div>
           ) : isInstalled ? (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-semibold text-emerald-700">
-              ✓ ZipZap App is already installed on your device!
+              ✓ Traptip App is already installed on your device!
             </div>
           ) : (
             /* Step-by-Step Instructions for Chrome/Edge/Android/iOS */

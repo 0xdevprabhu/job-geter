@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# ZipZap - Oracle Cloud VM Automated Daily Scraping Setup
+# Traptip - Oracle Cloud VM Automated Daily Scraping Setup
 # Configures automated daily scraping for Indian Govt Jobs & Private Jobs
 # ==============================================================================
 
@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "=========================================================="
-echo "🇮🇳 ZipZap - Oracle Cloud Automated Scraper Setup"
+echo "🇮🇳 Traptip - Oracle Cloud Automated Scraper Setup"
 echo "=========================================================="
 
 # 1. Check Python3 and venv

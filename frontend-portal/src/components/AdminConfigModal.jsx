@@ -339,7 +339,7 @@ export default function AdminConfigModal({ isOpen, onClose, onConfigSaved }) {
             </div>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                ZipZap Control Panel & Search Config
+                Traptip Control Panel & Search Config
               </h2>
               <p className="text-[11px] sm:text-xs text-slate-500 truncate">
                 Roles, Locations (Tamil Nadu & India) & Aggregation Parameters

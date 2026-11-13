@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ZipZap - All India & State Government Jobs, Exams, Admit Cards & Results Scraper
+Traptip - All India & State Government Jobs, Exams, Admit Cards & Results Scraper
 Scrapes official updates across ALL Indian States, Union Territories, Central Govt,
 Banking, Railways, Defence & Police, extracts state & district information,
 resolves direct official apply portals and PDF links, and syncs to Firestore.
@@ -658,7 +658,7 @@ def save_local_preview(items: List[Dict[str, Any]]):
 def main():
     start_time = time.time()
     logger.info("=====================================================")
-    logger.info("🇮🇳 Starting ZipZap Indian Government Jobs & Exams Scraper")
+    logger.info("🇮🇳 Starting Traptip Indian Government Jobs & Exams Scraper")
     logger.info("=====================================================")
 
     db = initialize_firebase()

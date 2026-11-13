@@ -68,8 +68,8 @@ export default function AdminAuthModal({ isOpen, onClose, onSuccess }) {
               <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">ZipZap Admin Access</h3>
-              <p className="text-[11px] sm:text-xs text-slate-500">Enter password to unlock ZipZap Settings</p>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">Traptip Admin Access</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500">Enter password to unlock Traptip Settings</p>
             </div>
           </div>
 

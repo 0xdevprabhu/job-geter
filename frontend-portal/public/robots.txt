@@ -1,4 +1,4 @@
-# Robots.txt for ZipZap Jobs Portal
+# Robots.txt for Traptip Jobs Portal
 # Production Domain: https://job-geter.vercel.app
 
 User-agent: *

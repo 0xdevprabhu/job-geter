@@ -49,7 +49,7 @@ import { generateSampleJobs } from './demoData';
 import { getFallbackGovtData } from './demoGovtData';
 import PortalIcon from './components/PortalIcon';
 import CustomSelectDropdown from './components/CustomSelectDropdown';
-import ZipZapLogo from './components/ZipZapLogo';
+import TraptipLogo from './components/TraptipLogo';
 import GovtJobsSection from './components/GovtJobsSection';
 import DynamicJobPostingSeo from './components/DynamicJobPostingSeo';
 import {
@@ -795,9 +795,9 @@ export default function App() {
         <div
           onClick={handleSecretLogoClick}
           className="cursor-pointer select-none"
-          title="ZipZap Jobs (Click 3 times for Admin)"
+          title="Traptip Jobs (Click 3 times for Admin)"
         >
-          <ZipZapLogo size={34} showText={true} subtitle="Jobs" />
+          <TraptipLogo size={34} showText={true} subtitle="Jobs" />
         </div>
 
         <div className="flex items-center gap-2">
@@ -806,7 +806,7 @@ export default function App() {
             <button
               onClick={handleTriggerInstall}
               className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
-              title="Install ZipZap App"
+              title="Install Traptip App"
             >
               <Download className="w-4 h-4 text-[#1E60FF]" />
             </button>
@@ -859,9 +859,9 @@ export default function App() {
             <div
               onClick={handleSecretLogoClick}
               className="cursor-pointer select-none pt-1"
-              title="ZipZap Jobs - Daily Multi-Portal Aggregator (Click 3 times for Admin)"
+              title="Traptip Jobs - Daily Multi-Portal Aggregator (Click 3 times for Admin)"
             >
-              <ZipZapLogo size={42} showText={true} stacked={true} subtitle="Jobs" />
+              <TraptipLogo size={42} showText={true} stacked={true} subtitle="Jobs" />
             </div>
 
             {/* Navigation Menu */}
@@ -1099,7 +1099,7 @@ export default function App() {
                 <button
                   onClick={handleTriggerInstall}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs transition"
-                  title="Install ZipZap on desktop or phone"
+                  title="Install Traptip on desktop or phone"
                 >
                   <Download className="w-3.5 h-3.5 text-[#1E60FF]" />
                   <span>Install App</span>
@@ -1200,11 +1200,11 @@ export default function App() {
             <div className="relative z-10 flex items-center justify-between gap-4">
               <div className="space-y-1 max-w-xl">
                 <h1 className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-snug">
-                  {currentUser ? `Welcome Back, ${userDisplayName}! 👋` : 'Welcome to ZipZap Jobs! 👋'}
+                  {currentUser ? `Welcome Back, ${userDisplayName}! 👋` : 'Welcome to Traptip Jobs! 👋'}
                 </h1>
                 <p className="text-xs sm:text-sm font-semibold text-slate-600">
                   {currentUser
-                    ? "Let's find your next opportunity with ZipZap Jobs"
+                    ? "Let's find your next opportunity with Traptip Jobs"
                     : 'Discover & track fresh daily jobs across 5 top portals in real time'}
                 </p>
 
@@ -1811,7 +1811,7 @@ export default function App() {
                       Automated Sync Schedule (IST)
                     </h4>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      ZipZap triggers automated cloud scrape jobs 4 times daily across all 5 major portals:
+                      Traptip triggers automated cloud scrape jobs 4 times daily across all 5 major portals:
                     </p>
                     <div className="space-y-1.5 text-xs font-semibold text-slate-700">
                       <div className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-200">

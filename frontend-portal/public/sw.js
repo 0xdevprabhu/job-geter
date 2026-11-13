@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zipzap-cache-v1';
+const CACHE_NAME = 'traptip-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -10,14 +10,14 @@ const ASSETS_TO_CACHE = [
   '/apple-touch-icon.png',
   '/icon-192.png',
   '/icon-512.png',
-  '/zipzap_logo.png'
+  '/traptip.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
-        console.warn('[ZipZap SW] Cache prefetch error:', err);
+        console.warn('[Traptip SW] Cache prefetch error:', err);
       });
     })
   );

@@ -15,7 +15,7 @@ import {
   EyeOff,
   User
 } from 'lucide-react';
-import ZipZapLogo from './ZipZapLogo';
+import TraptipLogo from './TraptipLogo';
 import {
   loginUser,
   sendOtpEmail,
@@ -205,10 +205,10 @@ export default function UserAuthModal({ isOpen, onClose, onLoginSuccess, initial
         {/* Modal Header */}
         <div className="p-6 pb-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <ZipZapLogo size={40} showText={false} />
+            <TraptipLogo size={40} showText={false} />
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black tracking-tight text-blue-600">ZipZap</span>
+                <span className="text-xs font-black tracking-tight text-[#002262]">Trap<span className="text-[#01ABB9]">tip</span></span>
                 <span className="text-[10px] font-bold text-slate-400">•</span>
                 <h3 className="text-base font-bold text-slate-800">
                   {mode === 'signup'

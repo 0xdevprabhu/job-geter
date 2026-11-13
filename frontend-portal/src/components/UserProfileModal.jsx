@@ -92,25 +92,25 @@ export default function UserProfileModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all">
-        {/* Creative Top Brand Header Banner (Replacing lightning emoji with authentic ZipZap design) */}
+        {/* Creative Top Brand Header Banner (Replacing lightning emoji with authentic Traptip design) */}
         <div className="h-28 bg-gradient-to-r from-[#001744] via-[#002875] to-[#1E60FF] relative flex items-center justify-between px-6 pt-2 pb-6 overflow-hidden">
           {/* Subtle Ambient Radial Glow */}
           <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-cyan-400/20 blur-xl pointer-events-none" />
           <div className="absolute -left-8 -bottom-8 w-32 h-32 rounded-full bg-blue-500/20 blur-xl pointer-events-none" />
 
-          {/* Left Brand Badge: Authentic Logo + ZipZap Member */}
+          {/* Left Brand Badge: Authentic Logo + Traptip Member */}
           <div className="relative z-10 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-xs -mt-4">
             <img
-              src="/portal/zip-zap.png"
-              alt="ZipZap"
+              src="/traptip.png"
+              alt="Traptip"
               className="w-5 h-5 rounded-md object-contain bg-white/20 p-0.5"
               onError={(e) => {
                 e.currentTarget.onerror = null;
-                e.currentTarget.src = '/zip-zap.png';
+                e.currentTarget.src = '/portal/traptip.png';
               }}
             />
             <div className="flex items-center gap-1 text-white text-xs font-black tracking-tight">
-              <span>Zip<span className="text-[#01ABB9]">Zap</span></span>
+              <span>Trap<span className="text-[#01ABB9]">tip</span></span>
               <span className="text-white/80 font-bold ml-0.5">Member</span>
             </div>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
@@ -244,7 +244,7 @@ export default function UserProfileModal({
               className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700 font-bold text-xs rounded-2xl border border-blue-200 flex items-center justify-center space-x-2 transition-all shadow-2xs"
             >
               <Download className="w-4 h-4 text-blue-600" />
-              <span>Install ZipZap App (Desktop/Mobile)</span>
+              <span>Install Traptip App (Desktop/Mobile)</span>
             </button>
           )}
 

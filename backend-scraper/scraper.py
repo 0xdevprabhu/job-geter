@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ZipZap - Instant Daily Job Aggregator & Tracker - Scraper Engine
+Traptip - Instant Daily Job Aggregator & Tracker - Scraper Engine
 Scrapes jobs from multiple platforms (Naukri, Indeed, LinkedIn, Glassdoor, RemoteOK)
 and pushes them to Firebase Firestore with duplicate prevention and user status preservation.
 """
@@ -302,7 +302,7 @@ def scrape_remoteok_jobs(job_roles: List[str], scraped_date: str) -> List[Dict[s
     logger.info("🌐 Fetching remote opportunities from RemoteOK API...")
     url = "https://remoteok.com/api"
     headers = {
-        "User-Agent": "ZipZapBot/1.0 (ZipZap Daily Job Radar; contact: support@zipzap.local)",
+        "User-Agent": "TraptipBot/1.0 (Traptip Daily Job Radar; contact: support@traptip.local)",
         "Accept": "application/json"
     }
 
@@ -492,7 +492,7 @@ def cleanup_old_jobs(db, retention_days: int = 30) -> Dict[str, Any]:
 def main():
     start_time = time.time()
     logger.info("=" * 60)
-    logger.info("🚀 ZipZap - Instant Daily Job Aggregator & Tracker - Starting Run")
+    logger.info("🚀 Traptip - Instant Daily Job Aggregator & Tracker - Starting Run")
     logger.info("=" * 60)
 
     # 1. Connect to Firestore

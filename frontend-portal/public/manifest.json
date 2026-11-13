@@ -1,13 +1,13 @@
 {
-  "name": "ZipZap - Instant Job Radar & Application Tracker",
-  "short_name": "ZipZap",
+  "name": "Traptip Jobs - Instant Job Radar & Application Tracker",
+  "short_name": "Traptip Jobs",
   "description": "Instant Daily Job Aggregator & Application Tracker across LinkedIn, Indeed, Naukri, Glassdoor, and RemoteOK.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0B0F19",
-  "theme_color": "#2563EB",
+  "theme_color": "#002262",
   "icons": [
     {
       "src": "/favicon-32x32.png",
@@ -15,7 +15,7 @@
       "type": "image/png"
     },
     {
-      "src": "/zipzap_logo.png",
+      "src": "/traptip.png",
       "sizes": "64x64",
       "type": "image/png"
     },
@@ -38,4 +38,3 @@
     "utilities"
   ]
 }
-

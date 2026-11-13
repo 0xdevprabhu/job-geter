@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-const OTP_SECRET = process.env.OTP_SECRET || 'zipzap-cloud-secret-otp-token-2026';
+const OTP_SECRET = process.env.OTP_SECRET || 'traptip-cloud-secret-otp-token-2026';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');

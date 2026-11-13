@@ -7,7 +7,7 @@ import React, { useEffect } from 'react';
  */
 export default function DynamicJobPostingSeo({ jobs = [], govtItems = [], activeNav = 'dashboard' }) {
   useEffect(() => {
-    const existingScript = document.getElementById('zipzap-dynamic-job-schema');
+    const existingScript = document.getElementById('traptip-dynamic-job-schema');
     if (existingScript) {
       existingScript.remove();
     }
@@ -25,10 +25,10 @@ export default function DynamicJobPostingSeo({ jobs = [], govtItems = [], active
         jobPostings.push({
           '@type': 'JobPosting',
           title: j.title,
-          description: j.description || `${j.title} opening at ${j.company || 'Hiring Company'} in ${j.location || 'India'}. Apply directly on ZipZap Jobs.`,
+          description: j.description || `${j.title} opening at ${j.company || 'Hiring Company'} in ${j.location || 'India'}. Apply directly on Traptip Jobs.`,
           identifier: {
             '@type': 'PropertyValue',
-            name: j.company || 'ZipZap Jobs',
+            name: j.company || 'Traptip Jobs',
             value: String(j.id || ''),
           },
           datePosted: j.date_posted || j.scraped_date || new Date().toISOString().split('T')[0],
@@ -105,13 +105,13 @@ export default function DynamicJobPostingSeo({ jobs = [], govtItems = [], active
     };
 
     const script = document.createElement('script');
-    script.id = 'zipzap-dynamic-job-schema';
+    script.id = 'traptip-dynamic-job-schema';
     script.type = 'application/ld+json';
     script.innerHTML = JSON.stringify(schemaData);
     document.head.appendChild(script);
 
     return () => {
-      const s = document.getElementById('zipzap-dynamic-job-schema');
+      const s = document.getElementById('traptip-dynamic-job-schema');
       if (s) s.remove();
     };
   }, [jobs, govtItems, activeNav]);

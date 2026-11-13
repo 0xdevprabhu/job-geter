@@ -30,10 +30,10 @@ export default async function handler(req, res) {
 
     if (testRecipient) {
       await transporter.sendMail({
-        from: `"ZipZap Jobs" <${smtpUser}>`,
+        from: `"Traptip Jobs" <${smtpUser}>`,
         to: testRecipient,
-        subject: '⚡ ZipZap SMTP Connection Verified!',
-        text: 'Congratulations! Your Gmail 16-digit App Password is working perfectly with ZipZap Jobs on Vercel.',
+        subject: '⚡ Traptip SMTP Connection Verified!',
+        text: 'Congratulations! Your Gmail 16-digit App Password is working perfectly with Traptip Jobs on Vercel.',
         html: '<div style="font-family: sans-serif; padding: 20px; text-align: center;"><h2>⚡ SMTP Verified!</h2><p>Your Gmail 16-digit App Password is working perfectly on Vercel!</p></div>'
       });
     }

@@ -92,8 +92,8 @@ def generate_otp(length: int = 6) -> str:
 
 
 def build_otp_html(otp_code: str, purpose: str = "signup") -> str:
-    """Creates a modern responsive HTML email for the OTP with ZipZap branding."""
-    action_text = "verify your email address and create your ZipZap account" if purpose == "signup" else "reset your ZipZap account password"
+    """Creates a modern responsive HTML email for the OTP with Traptip branding."""
+    action_text = "verify your email address and create your Traptip account" if purpose == "signup" else "reset your Traptip account password"
     title_text = "Email Verification Code" if purpose == "signup" else "Password Reset Request"
 
     return f"""<!DOCTYPE html>
@@ -101,22 +101,22 @@ def build_otp_html(otp_code: str, purpose: str = "signup") -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title_text} - ZipZap</title>
+  <title>{title_text} - Traptip</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 40px 10px;">
     <tr>
       <td align="center">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08); border: 1px solid #e2e8f0;">
-          <!-- Header with ZipZap PNG Logo -->
+          <!-- Header with Traptip PNG Logo -->
           <tr>
             <td style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%); padding: 36px 36px 30px; text-align: center;">
-              <!-- Embedded PNG ZipZap Logo via CID -->
+              <!-- Embedded PNG Traptip Logo via CID -->
               <div style="text-align: center; margin-bottom: 14px;">
-                <img src="cid:zipzap_logo" width="68" height="68" alt="ZipZap" style="display: inline-block; width: 68px; height: 68px; border-radius: 18px; border: 0; outline: none; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);" />
+                <img src="cid:traptip_logo" width="68" height="68" alt="Traptip" style="display: inline-block; width: 68px; height: 68px; border-radius: 18px; border: 0; outline: none; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); background: #ffffff; object-fit: contain;" />
               </div>
               <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">
-                ZipZap <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: #f59e0b; font-size: 14px; font-weight: 800; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.4); vertical-align: middle;">JOBS</span>
+                Traptip <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: #f59e0b; font-size: 14px; font-weight: 800; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.4); vertical-align: middle;">JOBS</span>
               </h1>
               <p style="margin: 8px 0 0; color: #94a3b8; font-size: 13px; font-weight: 500;">Instant Daily Job Radar & Application Tracker</p>
             </td>
@@ -140,7 +140,7 @@ def build_otp_html(otp_code: str, purpose: str = "signup") -> str:
 
               <!-- Security Note -->
               <p style="margin: 0 0 12px; color: #64748b; font-size: 13px; line-height: 1.5;">
-                🔒 <strong>Security Notice:</strong> Never share this code with anyone. ZipZap support will never ask for your verification code.
+                🔒 <strong>Security Notice:</strong> Never share this code with anyone. Traptip support will never ask for your verification code.
               </p>
               <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.5;">
                 If you did not request this verification code, please disregard this email.
@@ -152,10 +152,10 @@ def build_otp_html(otp_code: str, purpose: str = "signup") -> str:
           <tr>
             <td style="background-color: #f8fafc; padding: 22px 36px; border-top: 1px solid #e2e8f0; text-align: center;">
               <p style="margin: 0 0 4px; color: #64748b; font-size: 12px; font-weight: 600;">
-                ZipZap — Spot Jobs Before Anyone Else
+                Traptip — Spot Jobs Before Anyone Else
               </p>
               <p style="margin: 0; color: #94a3b8; font-size: 11px;">
-                Automated notification from your ZipZap platform.
+                Automated notification from your Traptip platform.
               </p>
             </td>
           </tr>
@@ -169,7 +169,7 @@ def build_otp_html(otp_code: str, purpose: str = "signup") -> str:
 
 def send_otp_email(recipient_email: str, otp_code: str, purpose: str = "signup", db=None) -> Dict[str, Any]:
     """
-    Sends the 6-digit OTP to the recipient via Gmail SMTP SSL with ZipZap branding.
+    Sends the 6-digit OTP to the recipient via Gmail SMTP SSL with Traptip branding.
     """
     creds = get_smtp_credentials(db=db)
     user = creds["smtp_user"]
@@ -182,13 +182,13 @@ def send_otp_email(recipient_email: str, otp_code: str, purpose: str = "signup",
         }
 
     try:
-        subject = f"⚡ Your ZipZap Verification Code: {otp_code}"
+        subject = f"⚡ Your Traptip Verification Code: {otp_code}"
         html_content = build_otp_html(otp_code, purpose)
 
         # Root message must be multipart/related to link inline CID images with HTML
         message = MIMEMultipart("related")
         message["Subject"] = subject
-        message["From"] = f"ZipZap Jobs <{user}>"
+        message["From"] = f"Traptip Jobs <{user}>"
         message["To"] = recipient_email
 
         # Alternative container for plain text and HTML
@@ -196,19 +196,19 @@ def send_otp_email(recipient_email: str, otp_code: str, purpose: str = "signup",
         message.attach(msg_alt)
 
         # Attach plain text fallback + rich HTML
-        plain_text = f"Your ZipZap verification code is: {otp_code}. Valid for 10 minutes."
+        plain_text = f"Your Traptip verification code is: {otp_code}. Valid for 10 minutes."
         msg_alt.attach(MIMEText(plain_text, "plain", "utf-8"))
         msg_alt.attach(MIMEText(html_content, "html", "utf-8"))
 
-        # Attach ZipZap PNG Logo as inline CID
+        # Attach Traptip PNG Logo as inline CID
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        logo_path = os.path.join(base_dir, "assets", "zipzap_logo.png")
+        logo_path = os.path.join(base_dir, "assets", "traptip.png")
         if os.path.exists(logo_path):
             try:
                 with open(logo_path, "rb") as f:
                     img = MIMEImage(f.read(), _subtype="png")
-                    img.add_header("Content-ID", "<zipzap_logo>")
-                    img.add_header("Content-Disposition", "inline", filename="zipzap_logo.png")
+                    img.add_header("Content-ID", "<traptip_logo>")
+                    img.add_header("Content-Disposition", "inline", filename="traptip.png")
                     message.attach(img)
             except Exception as img_err:
                 print(f"[MailService] Notice: Could not attach inline logo: {img_err}", file=sys.stderr)
@@ -304,8 +304,8 @@ def test_smtp_connection(test_recipient: Optional[str] = None, db=None) -> Dict[
             server.login(user, password)
             if test_recipient:
                 msg = MIMEMultipart("related")
-                msg["Subject"] = "⚡ ZipZap SMTP Connection Verified!"
-                msg["From"] = f"ZipZap Jobs <{user}>"
+                msg["Subject"] = "⚡ Traptip SMTP Connection Verified!"
+                msg["From"] = f"Traptip Jobs <{user}>"
                 msg["To"] = test_recipient
 
                 msg_alt = MIMEMultipart("alternative")
@@ -313,23 +313,23 @@ def test_smtp_connection(test_recipient: Optional[str] = None, db=None) -> Dict[
 
                 test_html = """<!DOCTYPE html><html><body style="font-family: sans-serif; background-color: #f1f5f9; padding: 30px 10px;">
                 <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; padding: 32px 24px; border: 1px solid #e2e8f0;">
-                  <img src="cid:zipzap_logo" width="64" height="64" alt="ZipZap" style="display: inline-block; margin-bottom: 12px; border-radius: 16px;" />
+                  <img src="cid:traptip_logo" width="64" height="64" alt="Traptip" style="display: inline-block; margin-bottom: 12px; border-radius: 16px; background: #ffffff; object-fit: contain;" />
                   <h2 style="margin: 0 0 8px; color: #0f172a;">SMTP Verified Successfully!</h2>
-                  <p style="margin: 0 0 16px; color: #475569; font-size: 14px;">Your Gmail 16-digit App Password is connected and working perfectly with ZipZap Jobs.</p>
+                  <p style="margin: 0 0 16px; color: #475569; font-size: 14px;">Your Gmail 16-digit App Password is connected and working perfectly with Traptip Jobs.</p>
                   <div style="display: inline-block; background: #ecfdf5; color: #059669; font-weight: bold; font-size: 13px; padding: 6px 16px; border-radius: 20px; border: 1px solid #a7f3d0;">⚡ Ready to send OTPs</div>
                 </div></body></html>"""
 
-                msg_alt.attach(MIMEText("⚡ Congratulations! Your Gmail 16-digit App Password is working perfectly with ZipZap Jobs.", "plain", "utf-8"))
+                msg_alt.attach(MIMEText("⚡ Congratulations! Your Gmail 16-digit App Password is working perfectly with Traptip Jobs.", "plain", "utf-8"))
                 msg_alt.attach(MIMEText(test_html, "html", "utf-8"))
 
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-                logo_path = os.path.join(base_dir, "assets", "zipzap_logo.png")
+                logo_path = os.path.join(base_dir, "assets", "traptip.png")
                 if os.path.exists(logo_path):
                     try:
                         with open(logo_path, "rb") as f:
                             img = MIMEImage(f.read(), _subtype="png")
-                            img.add_header("Content-ID", "<zipzap_logo>")
-                            img.add_header("Content-Disposition", "inline", filename="zipzap_logo.png")
+                            img.add_header("Content-ID", "<traptip_logo>")
+                            img.add_header("Content-Disposition", "inline", filename="traptip.png")
                             msg.attach(img)
                     except Exception:
                         pass

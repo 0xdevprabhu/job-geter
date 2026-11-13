@@ -89,7 +89,7 @@ export async function sendOtpEmail(email, purpose = 'signup') {
 
     const data = await res.json();
     if (data.token) {
-      sessionStorage.setItem('zipzap_otp_token', data.token);
+      sessionStorage.setItem('traptip_otp_token', data.token);
     }
     return data;
   } catch (err) {
@@ -104,7 +104,7 @@ export async function sendOtpEmail(email, purpose = 'signup') {
 export async function verifyOtpCode(email, otp) {
   const cleanEmail = (email || '').trim().toLowerCase();
   const cleanOtp = (otp || '').trim();
-  const token = sessionStorage.getItem('zipzap_otp_token') || '';
+  const token = sessionStorage.getItem('traptip_otp_token') || '';
 
   try {
     const res = await fetch('/api/verify-otp', {
@@ -115,7 +115,7 @@ export async function verifyOtpCode(email, otp) {
 
     const data = await res.json();
     if (data.success) {
-      sessionStorage.removeItem('zipzap_otp_token');
+      sessionStorage.removeItem('traptip_otp_token');
       return { success: true };
     } else if (data.error) {
       return { success: false, error: data.error };

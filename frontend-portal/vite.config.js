@@ -97,7 +97,7 @@ function authApiPlugin() {
         const mailScript = path.join(rootDir, 'backend-scraper', 'mail_service.py');
         const scraperScript = path.join(rootDir, 'backend-scraper', 'scraper.py');
 
-        const OTP_SECRET = process.env.OTP_SECRET || 'zipzap-cloud-secret-otp-token-2026';
+        const OTP_SECRET = process.env.OTP_SECRET || 'traptip-cloud-secret-otp-token-2026';
 
         // Route: Send OTP
         if (req.url === '/api/send-otp' && req.method === 'POST') {
